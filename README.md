@@ -1,168 +1,211 @@
-# 🚀 RealityViewport
+# 🎬 RealityViewport
 
-*Next-Generation 3D Scene Editor for Apple Silicon*
+*Native 3D Scene Editor for Apple Platforms*
 
-![Platform](https://img.shields.io/badge/platform-macOS%2026%2B-blue)
-![Architecture](https://img.shields.io/badge/arch-ARM64%20ONLY-green)
-![Swift Version](https://img.shields.io/badge/swift-6.0%2B-orange)
-![Xcode](https://img.shields.io/badge/Xcode-26%2B-red)
+![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20iOS%20%7C%20tvOS-blue)
+![Architecture](https://img.shields.io/badge/arch-Apple%20Silicon-green)
+![Swift Version](https://img.shields.io/badge/swift-6.0-orange)
+![Status](https://img.shields.io/badge/status-In%20Development-yellow)
 
-**RealityViewport** is the scene editor component of Orchard—a cutting-edge 3D editor built exclusively for Apple Silicon and the latest Apple technologies.
-
----
-
-## ✨ Features
-
-- **Modern RealityKit Pipeline**: Latest rendering with persistent entities
-- **Advanced Selection System**: Multi-selection with visual feedback  
-- **Transform Gizmos**: Translate, rotate, scale with precise control
-- **Cross-Platform**: Native macOS and iOS experiences
-- **Dual Interaction Modes**: Environment (camera) vs Entity (object) control
-- **Real-time Viewport**: Live scene updates with 120fps targets
-
-## 🎯 Built for the Future
-
-This project uses APIs that **only exist** in the 2025+ Apple ecosystem:
-- RealityKit 5 rendering pipeline
-- Swift 6 concurrency features
-- Modern SwiftUI 5 layout system
-- Apple Silicon-exclusive Metal 3 features
-- Advanced file coordination APIs
-
-> ⚡ **Requirements**  
-> - **macOS 26+** or **iOS 26+**
-> - **Apple Silicon** (M1/M2/M3/M4 only)
-> - **Xcode 26+**
-> - **Swift 6**
-
-> ❌ **Not Supported**  
-> - Intel Macs (will not compile)
-> - Legacy macOS/iOS versions
-> - Rosetta 2 compatibility
+**RealityViewport** is a professional 3D scene editor built with SwiftUI and RealityKit, designed as the primary 3D editing interface for the Orchard game engine. It provides native experiences across macOS, iOS, and tvOS with a modern architecture leveraging the latest Apple technologies.
 
 ---
 
-## 🏗️ Architecture
+## ✨ Key Features
 
+### 🎯 Modern 3D Editing
+- **RealityKit-powered viewport** with 60fps+ performance
+- **Dual interaction modes** - Environment (camera) vs Entity (object) control
+- **Transform gizmos** - Visual manipulation for translate, rotate, scale
+- **Multi-selection support** - Work with multiple objects simultaneously
+- **Scene graph** - Hierarchical organization with cameras, lights, and models
+
+### 📱 True Cross-Platform
+- **macOS** - Split-view interface with resizable panels
+- **iOS** - Full-screen editing with slide-out inspector
+- **tvOS** - Viewport-focused experience (preview)
+- Adaptive layouts that feel native on each platform
+
+### 🚀 Advanced Architecture
+- **SwiftUI + RealityKit** - No UIKit/AppKit dependencies
+- **Billboard system** - UI elements that face the camera
+- **Entity-node mapping** - Clean separation of concerns
+- **Keyboard & gamepad** support on compatible devices
+
+---
+
+## 🖼️ Platform Experiences
+
+### macOS Interface
+<img width="800" alt="macOS Split View" src="https://github.com/user-attachments/assets/placeholder-macos">
+
+- Traditional 3D editor layout (viewport left, inspector right)
+- Resizable panels with drag handles
+- Full keyboard shortcuts
+- Hover interactions for precision
+
+### iOS Interface
+<img width="400" alt="iOS Overlay Interface" src="https://github.com/user-attachments/assets/placeholder-ios">
+
+- Full-screen viewport with overlay controls
+- Slide-in inspector from right edge
+- Touch-optimized gizmo interaction
+- Bottom toolbar with material background
+
+---
+
+## 🏗️ Technical Architecture
+
+### Core Components
 ```
-RealityViewport/
-├── Core/                   # Swift 6 business logic
-│   ├── Nodes/             # Actor-based scene graph
-│   ├── Managers/          # @Observable state management  
-│   └── Components/        # Transform gizmos & tools
-├── Viewport/              # RealityKit rendering engine
-├── Inspector/             # SwiftUI property system
-└── Views/                 # Platform-adaptive layouts
-    ├── Mac/               # macOS split-view interface
-    └── iPhone/            # iOS overlay interface
+├── Core/
+│   ├── Managers/       # SceneManager, SelectionManager
+│   ├── Nodes/         # CameraNode, LightNode, ModelNode
+│   ├── Components/    # TransformGizmo, BillboardComponent
+│   └── Systems/       # BillboardSystem
+├── Viewport/
+│   ├── ViewportView.swift         # Main RealityKit view
+│   ├── ViewportState.swift        # Viewport-specific state
+│   ├── CameraController.swift     # Orbit/pan camera controls
+│   └── ViewportEntityFactory.swift # Entity creation
+└── Inspector/
+    ├── OutlinerView.swift        # Scene hierarchy
+    └── PropertiesView.swift      # Object properties
 ```
 
-**Key Components:**
-- **Scene Graph**: Camera, Light, and Model nodes with full transform control
-- **Camera System**: Orbit, pan, fly modes with gamepad support
-- **Selection Manager**: Multi-object selection with gizmo transforms
-- **Platform UI**: Adaptive interface for Mac (split view) and iPhone (overlays)
+### Interaction Modes
+RealityViewport features a unique dual-mode system:
+
+```swift
+enum ViewportInteractionMode {
+    case environment  // Camera navigation (orbit, pan, zoom)
+    case entity      // Object manipulation (select, transform)
+}
+```
+
+- **Environment Mode**: Drag to orbit camera, scroll to zoom
+- **Entity Mode**: Click to select, drag gizmos to transform
+- Clear visual indicators show current mode
+
+### File Support
+- **USDZ** - Universal Scene Description
+- **Reality** - Reality Composer files
+- Drag & drop or file picker import
 
 ---
 
 ## 🚧 Development Status
 
-### ✅ Phase 1: Foundation (Complete)
-- RealityKit viewport with persistent entities
-- Selection system with visual feedback  
-- Transform gizmos (translate, rotate, scale)
-- Cross-platform architecture (macOS/iOS)
+### Currently Working
+- ✅ Cross-platform viewport (macOS, iOS, tvOS)
+- ✅ Basic scene graph with cameras, lights, models
+- ✅ Dual interaction mode system
+- ✅ Transform gizmos (visual feedback)
+- ✅ File import (USDZ, Reality)
+- ✅ Billboard UI system
+- ✅ Camera orbit/pan controls
 
-### 🚀 Phase 2: Scene Management (In Progress)
-- Multi-selection with modern gestures
-- Scene graph persistence & undo/redo
-- Advanced node relationships
-- iPhone adaptive inspector panels
-- Unified icon-only toolbars
+### In Progress
+- 🔄 Multi-selection gestures refinement
+- 🔄 Gizmo hit detection improvements
+- 🔄 Scene persistence with SwiftData
+- 🔄 Advanced node relationships
 
-### 🔮 Phase 3: Advanced Features (Planned)
-- Reality Composer Pro integration
-- Advanced lighting & materials
-- Asset import pipeline
-- Scene templates & presets
-
----
-
-## 💻 Getting Started
-
-### Prerequisites
-- Mac with Apple Silicon (M1 minimum)
-- macOS 26 Developer Beta or later
-- Xcode 26 Developer Beta or later  
-- Active Apple Developer account
-
-### Quick Start
-1. Clone the repository
-2. Open `RealityViewport.xcodeproj` in Xcode 26+
-3. Select your target device (Mac or iPhone)
-4. Build and run
-
-### Basic Usage
-- **Environment Mode**: Camera navigation (orbit, pan, zoom)
-- **Entity Mode**: Object selection and transformation
-- **Import**: Drag USDZ or Reality files into the viewport
-- **Transform**: Use gizmos to move, rotate, scale objects
-- **Inspect**: Use the side panel to view/edit properties
+### Planned Features
+- 📋 Undo/redo system
+- 📋 Reality Composer Pro integration
+- 📋 Advanced lighting controls
+- 📋 Material editing
+- 📋 Animation timeline
 
 ---
 
-## 🎮 Controls
+## 🛠️ Building from Source
+
+*Note: Source code is currently in a private repository during initial development.*
+
+### Requirements
+- macOS 15.0+ (for development)
+- Xcode 16.0+
+- Swift 6.0
+- Apple Silicon Mac recommended
+
+### Supported Platforms
+- macOS 15.0+
+- iOS 18.0+
+- tvOS 18.0+ (limited features)
+
+---
+
+## 🎮 Controls Reference
 
 ### macOS
-- **Mouse**: Orbit camera (drag), zoom (scroll)
-- **Keyboard**: Mode switching, selection cycling  
-- **Shortcuts**: Standard Mac conventions
+- **Left Mouse**: Select objects / Orbit camera
+- **Right Mouse**: Context menus
+- **Scroll**: Zoom in/out
+- **Space**: Toggle interaction mode
+- **Delete**: Remove selected objects
 
-### iOS  
-- **Touch**: Tap to select, drag to transform
-- **Gestures**: Pinch to zoom, pan to orbit
-- **Interface**: Sliding inspector panel
-
----
-
-## 🔧 Part of Orchard
-
-RealityViewport is the scene editor component of **Orchard**—a complete Apple-native game development ecosystem built for modern Apple devices.
-
-**Related Components:**
-- Asset pipeline & import tools
-- Reality Composer Pro integration  
-- Metal 3 rendering optimizations
-- SwiftUI-based game logic editor
+### iOS
+- **Tap**: Select objects
+- **Drag**: Transform gizmos / Pan camera
+- **Pinch**: Zoom camera
+- **Two-finger drag**: Orbit camera
+- **Long press**: Context menu
 
 ---
 
-## 📋 Requirements
+## 🔗 Part of Orchard
 
-| Component | Version |
-|-----------|---------|
-| macOS | 26+ |
-| iOS | 26+ |  
-| Xcode | 26+ |
-| Swift | 6.0+ |
-| Hardware | Apple Silicon only |
+RealityViewport is one component of the **Orchard** game engine ecosystem:
+
+- **RealityViewport** - 3D scene editing (this project)
+- **RealitySyntax** - Code editor with syntax highlighting
+- **RealityAssets** - Asset management and import
+- **RealityBuild** - Build and deployment tools
+
+Each component is designed to work standalone or integrated.
+
+---
+
+## 📚 Documentation
+
+Documentation is being developed alongside the project:
+- **Architecture Guide** - Understanding the codebase
+- **Platform Adaptation** - macOS vs iOS differences
+- **Extension Guide** - Adding new node types
+- **RealityKit Integration** - Working with entities
 
 ---
 
 ## 🤝 Contributing
 
-This is a cutting-edge project using the latest Apple technologies. Contributions should:
-- Use Swift 6 concurrency features
-- Follow Apple's latest design patterns
-- Maintain Apple Silicon optimization
-- Support both macOS and iOS platforms
+While the repository is currently private, we welcome feedback:
+- Feature requests and suggestions
+- Bug reports (once public testing begins)
+- Platform-specific improvements
+- Performance optimization ideas
 
 ---
 
 ## 📄 License
 
-[Add your license information here]
+RealityViewport will be released under an open-source license (TBD) once it reaches public beta.
 
 ---
 
-*Built with ❤️ for the Apple ecosystem*
+## 🙏 Acknowledgments
+
+- [RealityKit](https://developer.apple.com/documentation/realitykit) team at Apple
+- SwiftUI engineering for modern declarative UI
+- The broader Apple developer community
+
+---
+
+<p align="center">
+  <i>Built with ❤️ for the Apple ecosystem as part of the Orchard game engine</i>
+</p>
+
+<p align="center">
+  <a href="#-realityviewport">Back to top ↑</a>
+</p>

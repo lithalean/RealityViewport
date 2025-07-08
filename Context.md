@@ -1,239 +1,251 @@
 # RealityViewport — AI Context Document
 
-**Date**: July 6, 2025  
-**Status**: Active Development - Phase 2  
-**Purpose**: Context engineering for AI systems working with RealityViewport codebase
+**Date**: January 2025  
+**Status**: Active Development - Core Features Working  
+**Purpose**: Accurate context for AI systems working with RealityViewport codebase
 
 ---
 
-## Project Identity
+## 🎯 Project Identity
 
-**RealityViewport** is the scene editor component of Orchard. It is NOT:
-- A standalone application
-- Called "RealityEditor" (legacy name)
-- Part of "Reality Game Engine" (placeholder name)
-- Cross-platform beyond Apple ecosystem
+**RealityViewport** is a SwiftUI + RealityKit 3D scene editor for the Orchard game engine.
 
-**Correct Context**: RealityViewport is a SwiftUI + RealityKit scene editor that runs natively on Apple Silicon, designed as the primary 3D editing interface for Orchard projects.
+**Key Facts:**
+- Part of Orchard (not "RealityEditor" or standalone)
+- Cross-platform: macOS, iOS, and tvOS support
+- Pure SwiftUI (no AppKit/UIKit dependencies)
+- Uses latest RealityKit for rendering
+- Apple Silicon optimized but Intel compatible
 
 ---
 
-## Technical Architecture Deep Dive
+## 🏗️ Current Architecture
 
-### Core Philosophy
-- **Apple Silicon Exclusive**: ARM64 only, no Intel support, no Rosetta
-- **Latest APIs Only**: Uses macOS 26+, iOS 26+, Swift 6, RealityKit 5
-- **Zero Legacy Code**: No AppKit, minimal UIKit, SwiftUI-first
-- **Cross-Platform**: Single codebase for macOS and iOS with platform adaptations
-
-### File Structure & Key Components
-
+### Directory Structure
 ```
 RealityViewport/
 ├── App/
-│   ├── RealityViewportApp.swift    # Main app entry point with SwiftData
-│   └── ContentView.swift           # Platform router (Mac/iPhone/TV)
-├── Core/                           # Business logic layer
+│   ├── ContentView.swift          # Platform router & file import
+│   └── RealityViewportApp.swift   # Main app with SwiftData
+├── Core/
+│   ├── Components/
+│   │   ├── BillboardComponent.swift    # Camera-facing UI
+│   │   ├── EditorComponents.swift      # Selection components
+│   │   └── TransformGizmo.swift        # 3D manipulation widgets
 │   ├── Managers/
-│   │   ├── SceneManager.swift      # @Observable scene state
-│   │   ├── SelectionManager.swift  # Multi-object selection logic
-│   │   └── ControlManager.swift    # Input handling coordination
-│   ├── Nodes/                      # Scene graph entities
-│   │   ├── SceneNode.swift         # Base protocol for 3D objects
-│   │   ├── CameraNode.swift        # Viewport camera representation
-│   │   ├── LightNode.swift         # Light sources (directional, point)
-│   │   └── ModelNode.swift         # 3D model containers
-│   ├── Components/                 # RealityKit components
-│   │   ├── EditorComponents.swift  # Selection, gizmo, billboard
-│   │   ├── TransformGizmo.swift    # 3D manipulation widgets
-│   │   └── BillboardComponent.swift # Camera-facing UI elements
+│   │   ├── SceneManager.swift          # Central scene state
+│   │   ├── SelectionManager.swift      # Multi-selection logic
+│   │   └── ControlManager.swift        # Input coordination
+│   ├── Nodes/
+│   │   ├── SceneNode.swift            # Base protocol
+│   │   ├── CameraNode.swift           # Camera representation
+│   │   ├── LightNode.swift            # Light sources
+│   │   └── ModelNode.swift            # 3D models
 │   └── Systems/
-│       └── BillboardSystem.swift   # Update billboard orientations
-├── Viewport/                       # RealityKit rendering layer
-│   ├── ViewportView.swift          # Main RealityView container
-│   ├── CameraController.swift      # Orbit/pan/fly camera logic
-│   ├── ViewportState.swift         # Viewport-specific state management
-│   ├── ViewportEntityFactory.swift # Entity creation & updates
-│   └── ViewportToolbar.swift       # Mode switching UI
-├── Inspector/                      # Property editing panels
-│   ├── InspectorView.swift         # Main inspector container
-│   ├── OutlinerView.swift          # Scene hierarchy display
-│   └── PropertiesView.swift        # Object property editor
-└── Views/                          # Platform-specific layouts
+│       └── BillboardSystem.swift       # Billboard updates
+├── Inspector/
+│   ├── InspectorView.swift            # Container view
+│   ├── OutlinerView.swift             # Scene hierarchy
+│   └── PropertiesView.swift           # Property editing
+├── Viewport/
+│   ├── ViewportView.swift             # Main RealityKit view
+│   ├── ViewportState.swift            # Viewport state
+│   ├── CameraController.swift         # Camera controls
+│   ├── ViewportEntityFactory.swift    # Entity creation
+│   ├── ViewportToolbar.swift          # Mode switching UI
+│   └── ViewportGrid.swift             # Grid helper
+└── Views/
     ├── Mac/
-    │   └── MacView.swift           # HSplitView layout with resizable panels
+    │   └── MacView.swift              # macOS layout
     └── iPhone/
-        └── iPhoneView.swift        # Overlay layout with sliding inspector
+        └── iPhoneView.swift           # iOS layout
 ```
 
-### Key State Management Patterns
+---
 
-**SceneManager** (`@StateObject`):
-- Central source of truth for scene data
-- Manages nodes array, selection state, entity updates
-- Uses `@Published` for reactive UI updates
-- Implements async model loading with proper error handling
+## 🔧 Core Implementation Details
 
-**ViewportState** (`@StateObject`):
-- Manages viewport-specific state (camera position, interaction mode)
-- Handles dual interaction modes: `.environment` vs `.entity`
-- Coordinates gizmo updates and billboard orientations
-- Throttles updates for 120fps performance
+### State Management
 
-**Interaction Mode System**:
+#### SceneManager (Main State)
+```swift
+class SceneManager: ObservableObject {
+    @Published var nodes: [any SceneNode] = []
+    @Published var activeCamera: CameraNode?
+    let selectionManager = SelectionManager()
+    
+    // Entity tracking
+    private var nodeToEntity: [UUID: Entity] = [:]
+    private var entityToNode: [Entity: any SceneNode] = [:]
+}
+```
+- Manages all scene nodes (cameras, lights, models)
+- Integrates with SelectionManager for multi-selection
+- Tracks entity-node relationships
+- Sets up default Blender-style scene
+
+#### ViewportState (Viewport-Specific)
+```swift
+class ViewportState: ObservableObject {
+    let rootEntity = Entity()
+    let cameraEntity = PerspectiveCamera()
+    @Published var needsUpdate: Bool = false
+    @Published var interactionMode: ViewportInteractionMode = .environment
+}
+```
+- Manages RealityKit entities
+- Controls viewport camera
+- Handles interaction mode switching
+- Triggers viewport updates
+
+### Interaction System
+
+#### Dual Mode Design
 ```swift
 enum ViewportInteractionMode {
     case environment  // Camera navigation only
-    case entity      // Object manipulation only
+    case entity      // Object selection/transform
 }
 ```
-- **Environment Mode**: Drag = camera orbit/pan, tap = no effect
-- **Entity Mode**: Drag = gizmo interaction, tap = selection cycling
-- **Mode Switching**: Manual via toolbar, strict separation enforced
 
-### Platform Adaptations
+**Environment Mode**:
+- Drag = orbit camera
+- Scroll = zoom
+- No object interaction
 
-**MacView**: 
-- HSplitView with resizable inspector panel (280pt width)
-- Viewport on left, inspector on right
-- Toolbar overlay on viewport
-- Drag gesture for resizing properties panel
+**Entity Mode**:
+- Tap = select object
+- Drag = transform via gizmo
+- Multi-selection support
 
-**iPhoneView**:
-- Full-screen viewport with overlay inspector
-- Sliding inspector from right edge (280pt width)
-- Bottom toolbar with material background
-- Touch-optimized gesture handling
+### Platform Layouts
 
-### RealityKit Integration Patterns
+#### macOS (MacView.swift)
+```
+[Viewport with overlays] | [Inspector Panel]
+        (Main)           |    (280pt wide)
+                        |  - Outliner
+                        |  - Properties
+```
+- HSplitView layout
+- Viewport on LEFT (opposite of RealitySyntax)
+- Inspector on RIGHT with resizable properties
 
-**Entity Factory Pattern**:
-- `ViewportEntityFactory.createEntity(for: SceneNode)` creates RealityKit entities
-- Maintains entity-to-node mapping via `EntitySelectionComponent`
-- Updates entity transforms when node properties change
-- Handles light entity special cases with `ViewportState.lightEntities`
-
-**Component System**:
-- `EntitySelectionComponent`: Links entities to scene nodes
-- `BillboardComponent`: Makes UI elements face camera
-- `GizmoAxisComponent`: Handles transform gizmo interactions
-- `InputTargetComponent`: Enables entity selection
-
-**Update Cycle**:
-1. Scene changes trigger `viewportState.needsUpdate = true`
-2. RealityView update block processes pending changes
-3. `BillboardSystem.update()` orients UI elements to camera
-4. Entity transforms sync with scene node properties
-
-### Performance Considerations
-
-**Update Throttling**:
-- Scene manager updates throttled to 16ms (60fps baseline)
-- RealityView updates only when `needsUpdate` flag set
-- Gesture deltas filtered to prevent micro-movements
-
-**Memory Management**:
-- Entities properly removed when nodes deleted
-- Entity dictionaries cleared when scene resets
-- Weak references where appropriate to prevent cycles
-
-**Apple Silicon Optimizations**:
-- Metal 3 rendering pipeline
-- Unified memory access patterns
-- SIMD math operations for transforms
-- Native ARM64 compilation
+#### iOS (iPhoneView.swift)
+```
+[Full Screen Viewport]
+    [Sliding Inspector →]
+[Bottom Toolbar]
+```
+- Full-screen viewport
+- Inspector slides from RIGHT edge
+- Material background toolbar at bottom
 
 ---
 
-## Current Development Status
+## 💡 Key Implementation Patterns
 
-### Working Features
-- ✅ Cross-platform UI (Mac split view, iPhone overlay)
-- ✅ Scene graph with cameras, lights, models
-- ✅ Dual interaction modes (environment/entity)
-- ✅ Transform gizmos (translate, rotate, scale)
-- ✅ USDZ/Reality file import
-- ✅ Multi-selection system
-- ✅ Orbit/pan/fly camera controls
-- ✅ Real-time viewport updates
+### Entity-Node Synchronization
+1. SceneNode (data model) changes
+2. ViewportState.needsUpdate = true
+3. RealityView update block runs
+4. ViewportEntityFactory creates/updates entities
+5. BillboardSystem orients UI elements
 
-### Known Issues
-- Gizmo hit detection needs refinement
-- Entity mode transform sensitivity requires tuning
-- iPhone inspector gesture conflicts possible
-- Need better visual feedback for mode switching
+### File Import Flow
+1. ContentView shows file picker
+2. Files copied to temp location (sandbox workaround)
+3. SceneManager.importModel() loads async
+4. Creates ModelNode with loaded entity
+5. Updates viewport automatically
 
-### Phase 2 Goals (Current)
-- Improved multi-selection gestures
+### Camera System
+- CameraController manages orbit/pan logic
+- Default Blender-style position: [7.48, 5.34, 6.50]
+- Looks at origin [0, 0, 0]
+- Spherical coordinate system for orbit
+
+---
+
+## 🚧 Current Development State
+
+### ✅ What's Working
+- Platform routing (macOS/iOS/tvOS)
+- Basic scene with camera and light
+- USDZ/Reality file import
+- Dual interaction modes
+- Transform gizmos (visual only)
+- Billboard UI system
+- Camera orbit/pan controls
+- Scene hierarchy display
+
+### ⚠️ Known Issues
+- Gizmo interaction not fully implemented
+- Hit testing needs refinement
+- Mode switching feedback minimal
+- No persistence yet
+- No undo/redo system
+
+### 🔄 In Progress
+- Gizmo hit detection and dragging
+- Multi-selection gestures
 - Scene persistence with SwiftData
-- Undo/redo system with Swift 6 actors
-- Advanced node relationships (parent/child)
-- Reality Composer Pro asset pipeline
+- Better mode switching UI
 
 ---
 
-## Development Guidelines for AI
+## 🛠️ Development Guidelines
 
-### Code Patterns to Follow
-- Use `@Observable` macro for new state objects (Swift 5.9+)
-- Prefer `async/await` over completion handlers
-- Use SIMD types for all 3D math operations
-- Platform-specific code with `#if os(macOS)` / `#if os(iOS)`
-- Error handling with proper Swift 6 patterns
+### Adding Features
+1. **New Node Types**: Extend SceneNode protocol, update ViewportEntityFactory
+2. **New Components**: Add to Core/Components, register in entity creation
+3. **Platform UI**: Add to both MacView and iPhoneView with adaptations
+4. **Viewport Features**: Modify ViewportView and ViewportState
 
-### Code Patterns to Avoid
-- AppKit or UIKit APIs (use SwiftUI equivalents)
-- Legacy Objective-C patterns
-- Intel-specific optimizations or x86_64 code
-- Blocking operations on main thread
-- Force unwrapping without clear safety
+### Code Patterns
+- Use `@MainActor` for UI-related classes
+- `async/await` for file operations
+- Platform checks: `#if os(macOS)`
+- Entity components for RealityKit features
+- Billboard system for camera-facing UI
 
 ### Common Tasks
-**Adding New Node Types**: Extend `SceneNode` protocol, update `ViewportEntityFactory`
-**Adding UI Components**: Create in `Views/` with platform adaptations
-**Modifying Transforms**: Update both scene node and corresponding entity
-**Camera Changes**: Go through `CameraController` for proper state management
-**Performance Issues**: Check update throttling and entity lifecycle
+```swift
+// Add a new model
+let modelNode = ModelNode(name: "MyModel")
+sceneManager.addNode(modelNode)
 
-### Architecture Decisions Context
-- **Why Swift 6?**: Actor-based concurrency for thread-safe scene updates
-- **Why RealityKit 5?**: Latest rendering features, Apple Silicon optimization
-- **Why No Legacy Support?**: Clean codebase, modern patterns, future-proofing
-- **Why Dual Interaction Modes?**: Clear separation of concerns, better UX
-- **Why Platform-Specific Views?** Native experience on each platform
+// Change interaction mode
+viewportState.interactionMode = .entity
 
----
-
-## Integration Context
-
-RealityViewport integrates with Orchard as:
-- **Primary 3D Editor**: Scene composition and object placement
-- **Asset Preview**: Visual verification of imported content  
-- **Scene Setup**: Camera positioning and lighting design
-- **Content Pipeline**: Bridge to Reality Composer Pro workflows
-
-**Related Systems** (external to RealityViewport):
-- Asset import pipeline
-- Game logic editor
-- Material editor
-- Animation timeline
-- Build system
+// Update camera
+cameraController.setDistance(15.0)
+```
 
 ---
 
-## AI Assistant Guidelines
+## 🔍 Debugging Tips
 
-When working with this codebase:
-1. **Always consider platform differences** (Mac vs iPhone UI patterns)
-2. **Respect the interaction mode system** (environment vs entity)
-3. **Use proper Swift 6 concurrency** for any async operations
-4. **Follow Apple Human Interface Guidelines** for new UI
-5. **Test on both platforms** when making changes
-6. **Maintain the "Apple Silicon exclusive" philosophy**
-7. **Use the latest API variants** (avoid deprecated patterns)
-
-The goal is a polished, professional-grade scene editor that feels native to Apple platforms and serves as a showcase for modern Apple development techniques.
+1. **Mode Issues**: Check ViewportToolbar mode button states
+2. **Selection Problems**: Verify EntitySelectionComponent setup
+3. **Update Issues**: Ensure needsUpdate flag is set
+4. **Import Failures**: Check console for file access errors
+5. **Platform Differences**: Test on both macOS and iOS
 
 ---
 
-*Updated July 6, 2025 — RealityViewport Context v2.0*
+## 📝 Integration Notes
+
+### With RealitySyntax
+- Opposite layouts (viewport left vs right)
+- Shared component patterns
+- Similar platform adaptation approach
+
+### With Orchard
+- Scene data will integrate with game logic
+- Export to game-ready formats
+- Asset pipeline connections
+
+---
+
+*This document reflects actual implementation as of January 2025*
