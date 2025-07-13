@@ -1,4 +1,5 @@
-lithalean@Mac RealityViewport % tree
+lithalean@Tylers-Mac-mini ~ % cd /Users/lithalean/Documents/Developer/3_Build/Xcode/RealityViewport
+lithalean@Tylers-Mac-mini RealityViewport % tree
 .
 ├── RealityViewport
 │   ├── App
@@ -15,6 +16,9 @@ lithalean@Mac RealityViewport % tree
 │   │   │   ├── BillboardComponent.swift
 │   │   │   ├── EditorComponents.swift
 │   │   │   └── TransformGizmo.swift
+│   │   ├── Data
+│   │   │   ├── LightData.swift
+│   │   │   └── TransformData.swift
 │   │   ├── Extensions
 │   │   │   ├── HelperExtensions.swift
 │   │   │   ├── Math+Matrix.swift
@@ -22,6 +26,7 @@ lithalean@Mac RealityViewport % tree
 │   │   │   └── NotificationExtension.swift
 │   │   ├── Managers
 │   │   │   ├── ControlManager.swift
+│   │   │   ├── ProjectManager.swift
 │   │   │   ├── SceneManager.swift
 │   │   │   └── SelectionManager.swift
 │   │   ├── Nodes
@@ -34,6 +39,8 @@ lithalean@Mac RealityViewport % tree
 │   │   └── Utilities
 │   │       ├── GridHelper.swift
 │   │       └── SceneStatistics.swift
+│   ├── en.lproj
+│   ├── info.plist
 │   ├── Inspector
 │   │   ├── CameraController+ViewportSupport.swift
 │   │   ├── InspectorView.swift
@@ -43,9 +50,12 @@ lithalean@Mac RealityViewport % tree
 │   ├── Sources
 │   │   └── Shared
 │   │       ├── Extensions
+│   │       │   ├── FileDocumentTypes.swift
+│   │       │   ├── FilePermissionsHelper.swift
 │   │       │   ├── HapticFeedback.swift
 │   │       │   ├── HitTesting.swift
-│   │       │   └── KeyboardShortcuts.swift
+│   │       │   ├── KeyboardShortcuts.swift
+│   │       │   └── ScrollWheelHandler.swift
 │   │       └── PlatformColor.swift
 │   ├── Viewport
 │   │   ├── CameraController.swift
@@ -59,10 +69,14 @@ lithalean@Mac RealityViewport % tree
 │   │   ├── ViewportView.swift
 │   │   └── ViewportView+Controls.swift
 │   └── Views
+│       ├── Console
+│       │   └── FileSystemModel.swift
+│       ├── FileSystem.swift
 │       ├── iPhone
 │       │   └── iPhoneView.swift
-│       └── Mac
-│           └── MacView.swift
+│       ├── Mac
+│       │   └── MacView.swift
+│       └── ProjectBrowserView.swift
 └── RealityViewport.xcodeproj
     ├── project.pbxproj
     ├── project.xcworkspace
@@ -75,7 +89,10 @@ lithalean@Mac RealityViewport % tree
     │           └── UserInterfaceState.xcuserstate
     └── xcuserdata
         └── lithalean.xcuserdatad
+            ├── xcdebugger
+            │   └── Breakpoints_v2.xcbkptlist
             └── xcschemes
                 └── xcschememanagement.plist
 
-31 directories, 47 files
+35 directories, 58 files
+lithalean@Tylers-Mac-mini RealityViewport % 
