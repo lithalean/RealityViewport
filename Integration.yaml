@@ -1,0 +1,196 @@
+# RealityViewport Integration Context
+# Version: 1.0
+# Last Updated: July 2025
+
+integration_summary:
+  total_integrations: 5
+  ready: 4
+  in_progress: 1
+  planned: 3
+
+# Core Framework Dependencies
+framework_dependencies:
+  SwiftUI:
+    version: "iOS 17.0+ / macOS 14.0+"
+    status: "integrated"
+    purpose: "Cross-platform UI framework"
+    critical: true
+    
+  RealityKit:
+    version: "Latest (2025)"
+    status: "integrated"
+    purpose: "3D rendering and scene management"
+    critical: true
+    features_used:
+      - RealityView
+      - ModelEntity
+      - PerspectiveCamera
+      - DirectionalLight
+      - Billboard component
+      
+  Foundation:
+    version: "System"
+    status: "integrated"
+    purpose: "File I/O, async operations"
+    critical: true
+    
+  UniformTypeIdentifiers:
+    version: "System"
+    status: "integrated"
+    purpose: "File type definitions"
+    usage: "Import/export file filtering"
+
+# External Dependencies
+external_dependencies:
+  Orchard_Game_Engine:
+    version: "Unknown"
+    status: "planned"
+    purpose: "Parent project integration"
+    notes: "RealityViewport is part of Orchard ecosystem"
+    
+# File Format Support
+file_formats:
+  USDZ:
+    status: "integrated"
+    import: true
+    export: false
+    extensions: [".usdz", ".usda", ".usdc"]
+    
+  Reality:
+    status: "integrated"
+    import: true
+    export: false
+    extensions: [".reality"]
+    
+  RVProject:
+    status: "in_progress"
+    import: true
+    export: true
+    extensions: [".rvproject"]
+    notes: "Custom project format - implementation incomplete"
+
+# API Integrations
+api_integrations:
+  # None currently - all local functionality
+
+# Platform Integrations
+platform_integrations:
+  iCloud:
+    status: "planned"
+    purpose: "Project sync across devices"
+    priority: "LOW"
+    
+  ShareSheet:
+    status: "planned"
+    purpose: "Export and sharing"
+    priority: "MEDIUM"
+    
+  QuickLook:
+    status: "considered"
+    purpose: "Preview USDZ files"
+    priority: "LOW"
+
+# Build System
+build_system:
+  Xcode:
+    version: "15.0+"
+    project_format: ".xcodeproj"
+    
+  Swift:
+    version: "5.9+"
+    features_used:
+      - "async/await"
+      - "Property wrappers"
+      - "Result builders"
+      
+  Deployment_Targets:
+    iOS: "17.0"
+    macOS: "14.0"
+    tvOS: "17.0"
+
+# Security & Permissions
+permissions:
+  file_access:
+    scope: "User selected files only"
+    sandboxed: true
+    
+  proposed_info_plist_additions:
+    - UIFileSharingEnabled
+    - LSSupportsOpeningDocumentsInPlace
+    - UISupportsDocumentBrowser
+
+# Future Integrations
+future_integrations:
+  CloudKit:
+    priority: "HIGH"
+    timeline: "Q3 2025"
+    purpose: "Sync projects across devices"
+    blockers: ["Project format finalization"]
+    
+  SceneKit_Converter:
+    priority: "MEDIUM"
+    timeline: "Q4 2025"
+    purpose: "Import/export SceneKit scenes"
+    blockers: ["API design"]
+    
+  Metal_Performance_Shaders:
+    priority: "LOW"
+    timeline: "2026"
+    purpose: "GPU-accelerated operations"
+    blockers: ["Performance benchmarking needed"]
+    
+  ModelIO:
+    priority: "MEDIUM"
+    timeline: "Q3 2025"
+    purpose: "Expanded 3D format support"
+    formats: ["OBJ", "STL", "PLY"]
+    
+  Combine_Framework:
+    priority: "MEDIUM"
+    timeline: "When needed"
+    purpose: "Reactive state management"
+    notes: "Currently using @Published is sufficient"
+
+# Testing Integration
+testing_frameworks:
+  XCTest:
+    status: "not_integrated"
+    priority: "HIGH"
+    coverage: "0%"
+    
+  Reality_Composer_Pro:
+    status: "compatible"
+    purpose: "Asset validation"
+    notes: "Can open exported USDZ files"
+
+# Performance Monitoring
+performance_tools:
+  Instruments:
+    status: "compatible"
+    profiles_needed:
+      - "Metal System Trace"
+      - "SwiftUI View Body"
+      - "File Activity"
+      
+  MetricKit:
+    status: "planned"
+    purpose: "Production performance monitoring"
+    priority: "LOW"
+
+# Development Tools Integration
+development_tools:
+  Swift_Packages:
+    status: "not_used"
+    notes: "No external packages currently"
+    
+  Git:
+    status: "assumed"
+    ignore_patterns:
+      - ".xcuserdata"
+      - "*.xcuserstate"
+      - ".DS_Store"
+      
+  Documentation:
+    status: "planned"
+    tools: ["DocC", "SwiftDoc"]
+    priority: "MEDIUM"
