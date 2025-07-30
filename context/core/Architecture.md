@@ -1,22 +1,23 @@
 # RealityViewport Architecture Context
 
 **Purpose**: Technical blueprint and system design rationale  
-**Version**: 1.0  
-**Status**: Active Development - Core Features Working  
+**Version**: 2.0  
+**Status**: Active Development - ~70% Complete with Mature Architecture  
 **Last Updated**: July 2025
 
 ## Key Concepts (AI Quick Reference)
 
 ### Core Architecture Pattern
 ```
-SwiftUI + RealityKit + Pure Declarative = Cross-Platform 3D Editor
+SwiftUI + RealityKit + ViewportState + Manager Pattern = Professional 3D Editor
 ```
 
 ### Critical Design Elements
 1. **Pure SwiftUI** - No AppKit/UIKit dependencies for true cross-platform
-2. **Environment Object Pattern** - SceneManager/ProjectManager injected at app level
-3. **Node-Based Scene Graph** - SceneNode → ModelNode/CameraNode/LightNode hierarchy
-4. **Component System** - BillboardComponent, TransformGizmo for visual helpers
+2. **ViewportState Pattern** - Centralized 3D viewport state management
+3. **Manager-Driven Architecture** - Specialized managers for distinct domains
+4. **Node Inheritance System** - BaseSceneNode with specialized implementations
+5. **Dual Selection System** - Entity/Node parallel tracking for UI/RealityKit sync
 
 ## System Architecture
 
@@ -70,25 +71,46 @@ ProjectManager.currentProject → ViewportToolbar (enables save)
 
 ## Design Patterns
 
-### Pattern 1: Node-Based Scene Graph
+### Pattern 1: ViewportState Centralization
 ```
-PURPOSE: Unified representation of 3D scene elements
-IMPLEMENTATION: Protocol-based nodes with common SceneNode base
-BENEFITS: Type-safe scene manipulation, easy serialization
+PURPOSE: Single source of truth for all viewport rendering state
+IMPLEMENTATION: ObservableObject with @Published properties and needsUpdate trigger
+BENEFITS: Deterministic rendering, easier debugging, decoupled UI updates
 ```
 
-### Pattern 2: Billboard Component System
+### Pattern 2: Node Inheritance Hierarchy
+```
+PURPOSE: Unified node type handling with specialized behavior
+IMPLEMENTATION: BaseSceneNode class with ModelNode/CameraNode/LightNode subclasses
+BENEFITS: Shared transform logic, type safety, protocol conformance
+```
+
+### Pattern 3: Platform Dialog Abstraction
+```
+PURPOSE: Cross-platform file operations with native feel
+IMPLEMENTATION: SwiftUI FileImporter/FileExporter with platform-specific handling
+BENEFITS: Single codebase, native dialogs per platform, security scoping
+```
+
+### Pattern 4: Dual Entity/Node Selection
+```
+PURPOSE: Bridge UI selection needs with RealityKit entity requirements
+IMPLEMENTATION: SelectionManager tracks both nodes and entities in parallel
+BENEFITS: Clean SwiftUI bindings, proper RealityKit integration
+```
+
+### Pattern 5: Billboard Component System
 ```
 PURPOSE: Always-facing UI elements in 3D space
 IMPLEMENTATION: ECS pattern with BillboardSystem
 BENEFITS: Consistent icon display across camera angles
 ```
 
-### Pattern 3: Dual Interaction Modes
+### Pattern 6: Async Model Loading
 ```
-PURPOSE: Toggle between camera and object manipulation
-IMPLEMENTATION: ControlManager with mode state
-BENEFITS: Clear user intent, reduced input ambiguity
+PURPOSE: Non-blocking asset loading with error handling
+IMPLEMENTATION: Async/await with security scope handling and fallbacks
+BENEFITS: Responsive UI, graceful error recovery
 ```
 
 ## Anti-Patterns to Avoid
@@ -120,6 +142,47 @@ let data = try await projectManager.loadProject()
 
 // CORRECT - Use SwiftUI
 .fileImporter(isPresented: $showImporter)
+```
+
+### ❌ NEVER: Direct ViewportState Mutation from Multiple Views
+```swift
+// WRONG - State conflicts
+viewportState.cameraPosition = newPosition // From random view
+
+// CORRECT - Through proper channels
+cameraController.updateCamera(position: newPosition)
+```
+
+### ❌ NEVER: Bypass Security-Scoped Resource Access
+```swift
+// WRONG - Will fail in sandboxed environment
+let modelEntity = try ModelEntity.load(contentsOf: url)
+
+// CORRECT - Use security scope
+let accessing = url.startAccessingSecurityScopedResource()
+defer { if accessing { url.stopAccessingSecurityScopedResource() } }
+let modelEntity = try ModelEntity.load(contentsOf: url)
+```
+
+### ❌ NEVER: Synchronous Model Loading in Main Thread
+```swift
+// WRONG - UI freeze
+let model = try ModelEntity.loadModel(named: "heavy.usdz")
+
+// CORRECT - Async loading
+Task {
+    let model = try await ModelEntity.loadModelAsync(named: "heavy.usdz")
+}
+```
+
+### ❌ NEVER: Create Entities Without Collision Setup
+```swift
+// WRONG - No physics/selection
+let entity = ModelEntity(mesh: .generateBox(size: 1))
+
+// CORRECT - Proper setup
+let entity = ModelEntity(mesh: .generateBox(size: 1))
+entity.generateCollisionShapes(recursive: true)
 ```
 
 ## Architectural Decisions Log

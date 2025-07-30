@@ -1,11 +1,9 @@
 # RealityViewport Visual Design Context
 
 **Purpose**: Complete visual design system and UI specifications  
-**Version**: 1.0  
+**Version**: 2.0  
 **Design Language**: Apple HIG + Custom 3D Elements  
 **Last Updated**: July 2025
-
-> ⚠️ **Note**: Design specifications inferred from implementation. Update with actual design values.
 
 ## Visual Hierarchy
 ```
@@ -16,21 +14,28 @@ Z-LAYERS (back→front):
 ├─[3] Billboard Icons (always-facing)
 ├─[4] Transform Gizmos (selection tools)
 ├─[5] Viewport Overlay (axis helper)
-└─[6] UI Layer (toolbar, inspector)
+└─[6] UI Layer (toolbar, inspector, dialogs)
 ```
 
 ## Quick Reference Tables
 
 ### Color Palette
-| Element | Light Mode | Dark Mode | Usage |
-|---------|------------|-----------|-------|
+| Element | Light Mode | Dark Mode | Hex/Usage |
+|---------|------------|-----------|-----------|
 | **Background** | systemBackground | systemBackground | Main viewport |
 | **Grid** | gray.opacity(0.3) | gray.opacity(0.3) | Reference grid |
 | **Selection** | accentColor | accentColor | Selected objects |
-| **Gizmo X** | Color.red | Color.red | X-axis transform |
-| **Gizmo Y** | Color.green | Color.green | Y-axis transform |
-| **Gizmo Z** | Color.blue | Color.blue | Z-axis transform |
-| **Icons** | label | label | Billboard icons |
+| **Gizmo X** | .red | .red | X-axis transform |
+| **Gizmo Y** | .green | .green | Y-axis transform |
+| **Gizmo Z** | .blue | .blue | Z-axis transform |
+| **Gizmo XY** | .yellow | .yellow | XY plane |
+| **Gizmo XZ** | .cyan | .cyan | XZ plane |
+| **Gizmo YZ** | .purple | .purple | YZ plane |
+| **Gizmo Center** | .white | .gray | Multi-axis |
+| **Button Active** | accentColor.opacity(0.2) | accentColor.opacity(0.2) | Active state |
+| **Icons** | .label | .label | Billboard icons |
+| **Error** | .red | .red | Error states |
+| **Success** | .green | .green | Success feedback |
 
 ### Spacing System
 | Token | Value | Usage |
@@ -52,28 +57,73 @@ Z-LAYERS (back→front):
 
 ### Viewport Toolbar
 ```yaml
-height: 44pt (iOS) / 38pt (macOS)
+height: 
+  macOS: 38pt
+  iOS: 44pt
+  tvOS: 60pt
 background: .regularMaterial
+layout: horizontal
+padding: 12pt
 items:
-  - segmented_control: Mode selection
-  - divider: 1pt separator
-  - buttons: Tool actions
-  - spacer: Flexible space
-  - menu: Add entities
+  - mode_toggle:
+      type: segmented_control
+      options: ["Environment", "Entity"]
+      style: bordered
+  - divider:
+      width: 1pt
+      color: .separator
+  - tool_buttons:
+      spacing: 8pt
+      style: bordered_prominent (when active)
+  - spacer:
+      type: flexible
+  - add_menu:
+      style: menu_button
+      icon: "plus.circle.fill"
+responsive_behavior:
+  compact: hide_labels
+  regular: show_labels
 ```
 
-### Transform Gizmo
+### Transform Gizmo Specifications
 ```yaml
-style: "Standard 3D manipulation"
+style: "3D Axis-Aligned"
+components:
+  axes:
+    length: 2.0 units
+    thickness: 0.05 units
+    tip_size: 0.15 units
+  planes:
+    size: 0.5 units
+    opacity: 0.3
+  center:
+    size: 0.2 units
+    style: sphere
 colors:
   x_axis: red
   y_axis: green  
   z_axis: blue
-  center: white
-  selected: yellow
-scale: "Constant screen size"
-opacity: 0.8
-hover_opacity: 1.0
+  xy_plane: yellow
+  xz_plane: cyan
+  yz_plane: purple
+  center: white/gray
+  hover: 20% brighter
+  active: 40% brighter
+interaction_states:
+  idle:
+    opacity: 0.8
+    scale: 1.0
+  hover:
+    opacity: 1.0
+    scale: 1.1
+    cursor: platform_specific
+  dragging:
+    opacity: 1.0
+    scale: 1.0
+    show_guides: true
+screen_space_scaling: true
+minimum_size: 60pt
+maximum_size: 200pt
 ```
 
 ### Billboard Icons
@@ -205,11 +255,59 @@ icons: circle
 - No hover animations
 - Static billboard rotation
 
-## Future Visual Considerations
+## File Dialog Visual Flows
 
-### Planned Enhancements
-- [ ] Custom viewport themes
-- [ ] Adjustable grid colors
-- [ ] Icon size preferences
-- [ ] Gizmo style options
-- [ ] Dark/light mode override
+### New Project Dialog
+```yaml
+type: modal_sheet
+width: 400pt
+content:
+  - title: "New Project"
+  - text_field:
+      label: "Project Name"
+      placeholder: "My Project"
+  - location_picker:
+      label: "Save Location"
+      default: "~/Documents/RealityViewport Projects"
+  - buttons:
+      cancel: secondary_style
+      create: primary_style
+validation:
+  - non_empty_name
+  - valid_characters
+  - unique_name_in_directory
+```
+
+### Import Dialog Flow
+```yaml
+stages:
+  file_selection:
+    type: system_file_browser
+    allowed_types: [.usdz, .reality]
+    multiple_selection: true
+  import_progress:
+    type: progress_sheet
+    shows: file_name, progress_bar, cancel_button
+  completion:
+    type: auto_dismiss
+    duration: 1.5s
+    shows: success_checkmark
+```
+
+### Export Format Selection
+```yaml
+type: popover
+trigger: export_button
+content:
+  - section_header: "Export Format"
+  - radio_group:
+      options:
+        - USDZ (3D Scene)
+        - Reality (AR Quick Look)
+        - JSON (Scene Data)
+  - section_header: "Options"
+  - checkboxes:
+      - Include Textures
+      - Optimize Geometry
+  - export_button: primary_style
+```
