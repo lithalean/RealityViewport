@@ -1,118 +1,18 @@
-## User Journey Flows
+# RealityViewport Navigation Context
 
-### 🎬 First Launch Journey
-```
-START → Empty Scene → Viewport Displayed → Grid Visible
-   ↓
-Add Menu → Choose Entity (Camera/Light) → Entity Created
-   ↓
-See Billboard Icon → Select Entity → View Properties
-   ↓
-Import Model → File Browser → USDZ Selected → Model Loaded
-```
+**Purpose**: Screen flow, user journeys, and state management with Entity/ECS and Adaptive UI  
+**Version**: 3.0  
+**Navigation Pattern**: Mode-Based Tool System with Entity Operations  
+**Last Updated**: August 2025
 
-### 📁 Project Management Flow
-```
-Projects Button → ProjectBrowserView Sheet
-   ├─→ New Project → Name Dialog → Location Picker → Create
-   ├─→ Open Project → File Browser → Select .rvproject → Load
-   ├─→ Recent Projects → Quick Access List → Select → Open
-   └─→ Save As → Name Dialog → Location Picker → Save
-
-Save Flow Details:
-   First Save → Save As Dialog → Choose Name/Location
-   Subsequent Save → Direct Save (Cmd+S)
-   Save Copy As → New Name Dialog → Keep Original Open
-```
-
-### 💾 Import/Export Workflows
-
-#### Import Multiple Files
-```
-Import Button → File Browser (Multi-Select)
-   ↓
-Select Multiple USDZ/Reality Files
-   ↓
-Import Progress (Per File)
-   ├─→ Success: Add to Scene at Origin
-   ├─→ Error: Show in Error List
-   └─→ Complete: Select Last Imported
-```
-
-#### Export with Format Selection
-```
-Export Button → Format Picker Popover
-   ├─→ USDZ: Options → Include Textures? → Save Dialog
-   ├─→ Reality: Options → AR Optimized? → Save Dialog
-   └─→ JSON: Options → Pretty Print? → Save Dialog
-   
-Post-Export:
-   → Success Toast → Optional "Open in Finder"
-```
-
-### 🎮 Mode Switching Behavior
-
-#### Environment → Entity Mode
-```
-Environment Mode (Camera Control)
-   ↓ [Space or Mode Toggle]
-Entity Mode Activated
-   ├─→ Gizmos Become Visible
-   ├─→ Camera Lock Indicator
-   ├─→ Selection Highlighting Enabled
-   └─→ Cursor Changes to Select
-```
-
-#### Entity → Environment Mode  
-```
-Entity Mode (Object Manipulation)
-   ↓ [Space or Mode Toggle]
-Environment Mode Activated
-   ├─→ Gizmos Hidden
-   ├─→ Camera Unlock Indicator
-   ├─→ Selection Dimmed
-   └─→ Cursor Changes to Orbit
-```
-
-### 🔧 Gizmo Interaction Patterns
-
-#### Gizmo Selection Flow
-```
-Entity Selected → Gizmo Appears at Entity
-   ↓
-Hover Over Axis → Axis Highlights
-   ↓
-Click + Drag → Constrained Movement
-   ├─→ X Axis: Red Line Guide
-   ├─→ Y Axis: Green Line Guide
-   ├─→ Z Axis: Blue Line Guide
-   └─→ Plane: Grid Guide
-   
-Release → Update Transform → Save Undo State
-```
-
-#### Multi-Axis Interaction
-```
-Center Sphere Hover → All Axes Highlight
-   ↓
-Drag → Free Movement on Screen Plane
-   ↓
-Shift + Drag → Snapping Enabled (1 unit increments)
-```# RealityViewport Navigation Context
-
-**Purpose**: Screen flow, user journeys, and state management  
-**Version**: 2.0  
-**Navigation Pattern**: Mode-Based Tool System with File Operations  
-**Last Updated**: July 2025
-
-## Navigation State Machine
+## Navigation State Machine (Entity-Based)
 ```
 ┌─────────────┐     Switch Mode    ┌──────────────┐
-│   Camera    │ ◄─────────────────► │   Object     │
-│    Mode     │                     │    Mode      │
+│ Environment │ ◄─────────────────► │    Entity    │
+│    Mode     │                     │     Mode     │
 └─────────────┘                     └──────────────┘
       │                                    │
-      │ Gestures                          │ Select
+      │ Camera Control                     │ Select Entity
       ▼                                    ▼
 ┌─────────────┐                     ┌──────────────┐
 │   Orbit/    │                     │  Transform   │
@@ -120,24 +20,29 @@ Shift + Drag → Snapping Enabled (1 unit increments)
 └─────────────┘                     └──────────────┘
 ```
 
-## Screen Hierarchy
+## Screen Hierarchy (Adaptive UI v3.0)
 ```
 RealityViewportApp
-├── ContentView (Main Container)
-│   ├── Platform Router
-│   │   ├── MacView (macOS)
-│   │   ├── iPhoneView (iOS)
-│   │   └── ContentView (tvOS)
+├── ContentView (SINGLE ADAPTIVE VIEW)
+│   ├── NavigationSplitView (Regular: iPad/Mac)
+│   │   ├── Sidebar: InspectorView
+│   │   └── Detail: ViewportStack
 │   │
-│   ├── ViewportView (3D Scene)
-│   │   ├── RealityView
-│   │   ├── ViewportToolbar
-│   │   ├── ViewportAxisHelper
-│   │   └── ViewportGrid
+│   ├── NavigationStack (Compact: iPhone)
+│   │   ├── Main: ViewportStack
+│   │   └── Inspector: Sheet/Overlay
 │   │
-│   ├── InspectorView (Right Panel)
-│   │   ├── OutlinerView
-│   │   └── PropertiesView
+│   ├── ViewportStack (Composite Rendering)
+│   │   ├── MetalSkyView (Layer 0: GPU Sky)
+│   │   ├── ViewportMetalGrid (Layer 1: GPU Grid)
+│   │   └── ViewportView (Layer 2: RealityKit)
+│   │       ├── RealityView (Entities)
+│   │       ├── ViewportToolbar
+│   │       └── CameraController
+│   │
+│   ├── InspectorView (Adaptive Panel)
+│   │   ├── OutlinerView (Entity Hierarchy)
+│   │   └── PropertiesView (Entity Properties)
 │   │
 │   └── Sheets/Modals
 │       ├── ProjectBrowserView
@@ -145,279 +50,361 @@ RealityViewportApp
 │       └── Export Options
 ```
 
-## User Journey Flows
+## User Journey Flows (Entity System)
 
 ### 🎬 First Launch Journey
 ```
-START → Empty Scene → Viewport Displayed → Grid Visible
+START → Empty Scene → Metal Sky + Grid Visible
    ↓
-Add Menu → Choose Entity (Camera/Light) → Entity Created
+Add Menu → Choose Entity Type (Camera/Light/Model)
    ↓
-See Billboard Icon → Select Entity → View Properties
+Entity Created → SceneManager.addEntity()
    ↓
-Import Model → File Browser → USDZ Selected → Model Loaded
+See Billboard Icon → Select Entity → SelectionManager.select()
+   ↓
+View Properties → InspectorView Updates → Modify Entity
 ```
 
-### 📁 Project Management Flow
+### 📁 Project Management Flow (Entity-Based)
 ```
 Projects Button → ProjectBrowserView Sheet
-   ├─→ New Project → Enter Name → Create
-   ├─→ Open Project → Select .rvproject → Load
-   └─→ Recent Projects → Quick Access → Open
+   ├─→ New Project → Name Dialog → Location Picker → Create
+   ├─→ Open Project → File Browser → Select .rvproject → Load Entities
+   ├─→ Recent Projects → Quick Access List → Select → Deserialize Entities
+   └─→ Save As → Name Dialog → Serialize Entities → Save
+
+Entity Serialization:
+   Entities → ProjectEntityData → JSON → .rvproject file
+   Load: .rvproject → ProjectEntityData → Recreate Entities
 ```
 
-### 🎮 Interaction Mode Flow
-```
-Camera Mode (Default)
-   ├─→ Drag: Orbit camera
-   ├─→ Right Drag: Pan camera  
-   └─→ Scroll/Pinch: Zoom
+### 💾 Import/Export Workflows (Entity System)
 
-[Toggle Mode Button]
+#### Import Model as Entity
+```
+Import Button → File Browser → Select USDZ/Reality
    ↓
-Object Mode
-   ├─→ Click: Select object
-   ├─→ Gizmo: Transform (future)
-   └─→ Multi-select: Cmd/Shift (future)
+Create ModelEntity → entity.isLoading = true
+   ↓
+Async Load: await entity.load(from: url)
+   ↓
+Add to Scene: sceneManager.addEntity(entity)
+   ↓
+Auto-Select: selectionManager.select(entity)
 ```
 
-### 🔧 Entity Creation Flow
+#### Export Entities
 ```
-Add Menu (+) → Entity Type Menu
-   ├─→ Camera → New camera at origin
-   ├─→ Light → New light at origin
-   ├─→ Primitives (future)
-   │     ├─→ Cube
-   │     ├─→ Sphere
-   │     └─→ Plane
-   └─→ Import → File browser
+Export Button → Format Picker
+   ├─→ JSON: Serialize all entities → ProjectSceneData
+   ├─→ USDZ: Convert entities to RealityKit → Export (pending)
+   └─→ Reality: Similar to USDZ (pending)
 ```
 
-## Navigation Quick Reference
+### 🎮 Mode Switching Behavior (ViewportState)
 
-| From | To | Trigger | Duration | Type |
-|------|-----|---------|----------|------|
-| Any View | ProjectBrowser | Projects button | 300ms | Sheet |
-| Any View | Import Dialog | Import menu/button | 200ms | System |
-| Camera Mode | Object Mode | Mode toggle | Instant | State |
-| No Selection | Selected | Click entity | 200ms | Highlight |
-| Outliner | Properties | Select item | Instant | Update |
+#### Environment → Entity Mode
+```
+Environment Mode (Camera Control)
+   ↓ [Space or Segmented Control]
+viewportState.interactionMode = .entity
+   ├─→ Gizmos Enabled for Selected Entity
+   ├─→ Camera Lock Visual Indicator
+   ├─→ Entity Selection Active
+   └─→ Cursor Changes to Select
+```
 
-## Gesture Navigation
+#### Entity → Environment Mode  
+```
+Entity Mode (Entity Manipulation)
+   ↓ [Space or Segmented Control]
+viewportState.interactionMode = .environment
+   ├─→ Gizmos Disabled
+   ├─→ Camera Unlock Indicator
+   ├─→ Camera Controls Active
+   └─→ Cursor Changes to Orbit
+```
+
+### 🔧 Entity Transform Patterns
+
+#### Entity Selection Flow
+```
+Click in Viewport → Hit Test → Find RealityKit.Entity
+   ↓
+Map to Custom Entity via SceneManager
+   ↓
+selectionManager.select(entity)
+   ├─→ Gizmo Created at entity.position
+   ├─→ Properties Panel Updates
+   ├─→ Outliner Highlights
+   └─→ Selection Component Added
+```
+
+#### Gizmo Interaction with Entity
+```
+Entity Selected → TransformGizmo at entity.position
+   ↓
+Hover Over Axis → Axis Highlights
+   ↓
+Drag → Update entity.position/rotation/scale
+   ├─→ X Axis: entity.position.x changes
+   ├─→ Y Axis: entity.position.y changes
+   ├─→ Z Axis: entity.position.z changes
+   └─→ Center: Free movement
+   
+Release → entity.realityEntity syncs → Scene Updates
+```
+
+## Adaptive Layout Behaviors
+
+### NavigationSplitView (Regular Width)
+```
+iPad/Mac Layout:
+┌──────────────────────────────────────┐
+│ ┌─────────┬────────────────────────┐ │
+│ │Inspector│      Viewport           │ │
+│ │         │   ┌──────────────┐     │ │
+│ │Outliner │   │ Metal + RK   │     │ │
+│ │─────────│   │   Layers     │     │ │
+│ │Properties│  └──────────────┘     │ │
+│ └─────────┴────────────────────────┘ │
+└──────────────────────────────────────┘
+```
+
+### NavigationStack (Compact Width)
+```
+iPhone Layout:
+┌─────────────┐
+│  Viewport   │
+│ ┌─────────┐ │
+│ │ Metal + │ │
+│ │   RK    │ │
+│ └─────────┘ │
+│             │
+│ [Toolbar]   │  ← Floating bottom
+│ [Inspector] │  ← Sheet overlay
+└─────────────┘
+```
+
+## Navigation Quick Reference (Entity System)
+
+| From | To | Trigger | State Change | Type |
+|------|-----|---------|--------------|------|
+| Any View | ProjectBrowser | Projects button | Load entities | Sheet |
+| Any View | Import Dialog | Import menu | Create ModelEntity | System |
+| Environment | Entity Mode | Mode toggle | viewportState.interactionMode | Instant |
+| No Selection | Entity Selected | Click entity | selectionManager.select() | Highlight |
+| Outliner | Properties | Select entity | @Published updates | Instant |
+
+## Gesture Navigation (Entity Operations)
 
 ### macOS
-| Gesture | Mode | Action |
-|---------|------|--------|
-| Click + Drag | Camera | Orbit camera |
-| Right Click + Drag | Camera | Pan camera |
-| Scroll Wheel | Camera | Zoom |
-| Click | Object | Select entity |
-| Cmd + Click | Object | Multi-select (future) |
-| Double Click | Any | Focus on object |
+| Gesture | Mode | Action | Entity Impact |
+|---------|------|--------|---------------|
+| Click + Drag | Environment | Orbit camera | None |
+| Right Click + Drag | Environment | Pan camera | None |
+| Scroll Wheel | Environment | Zoom | None |
+| Click | Entity | Select entity | SelectionManager updates |
+| Cmd + Click | Entity | Multi-select | Add to selection array |
+| Double Click | Any | Focus on entity | Camera targets entity |
 
 ### iOS
-| Gesture | Mode | Action |
-|---------|------|--------|
-| One Finger Drag | Camera | Orbit camera |
-| Two Finger Drag | Camera | Pan camera |
-| Pinch | Camera | Zoom |
-| Tap | Object | Select entity |
-| Long Press | Object | Context menu (future) |
-| Double Tap | Any | Focus on object |
+| Gesture | Mode | Action | Entity Impact |
+|---------|------|--------|---------------|
+| One Finger Drag | Environment | Orbit camera | None |
+| Two Finger Drag | Environment | Pan camera | None |
+| Pinch | Environment | Zoom | None |
+| Tap | Entity | Select entity | SelectionManager updates |
+| Long Press | Entity | Context menu | Entity options |
+| Double Tap | Any | Focus on entity | Camera targets entity |
 
-## State Management
+## State Management (Entity System)
 
-### Global States
+### Manager States
 ```swift
-// App Level
-@StateObject var sceneManager: SceneManager
-@StateObject var projectManager: ProjectManager
+// App Level - Environment Objects
+@StateObject var sceneManager: SceneManager      // Entity management
+@StateObject var projectManager: ProjectManager  // File operations
+@StateObject var dayNightManager: DayNightManager // Atmosphere
 
-// View Level  
-@State var showProjectBrowser: Bool
-@State var showImporter: Bool
-@State var currentMode: InteractionMode
+// SceneManager State
+@Published var entities: [any SceneEntity] = []
+@Published var selectedEntity: (any SceneEntity)?
+
+// ViewportState (RealityKit.Entity management)
+let rootEntity = RealityKit.Entity()
+@Published var interactionMode: ViewportInteractionMode
+@Published var needsUpdate: Bool
 ```
 
 ### Navigation States
 ```yaml
 viewport_state:
-  mode: "camera" | "object"
-  camera_locked: false
-  grid_visible: true
-  gizmos_visible: true
+  mode: .environment | .entity
+  camera_distance: Float
+  camera_azimuth: Float
+  camera_elevation: Float
+  grid_visible: true (Metal rendered)
   
 selection_state:
-  selected_nodes: []
-  multi_select_enabled: false
-  selection_locked: false
+  selected_entities: [any SceneEntity]
+  primary_selection: SceneEntity?
+  gizmo_mode: .translate | .rotate | .scale
   
-panel_state:
-  inspector_visible: true
-  inspector_tab: "outliner" | "properties"
-  console_visible: false
+inspector_state:
+  visibility: .automatic | .visible | .hidden
+  properties_height: CGFloat
+  active_tab: .outliner | .properties
 ```
 
-## Modal Flows
+## Modal Flows (Entity Context)
 
-### Import Model Flow
+### Import Model Entity Flow
 ```
 1. User clicks Import (+) or File → Import
-2. System file browser opens with filters
-3. User selects .usdz/.reality file(s)
-4. Security scope accessed
-5. Loading progress indicator shows
-6. Model validation occurs
-7. On Success:
-   - Model appears at origin
-   - Model auto-selected
+2. System file browser with .usdz/.reality filters
+3. User selects file(s)
+4. For each file:
+   - Create ModelEntity(modelNamed: filename)
+   - Set entity.isLoading = true
+   - sceneManager.addEntity(entity)
+   - await entity.load(from: url) // Async
+   - entity.isLoading = false
+5. On Success:
+   - Entity appears at origin
+   - Auto-select last imported
    - Properties panel updates
-   - Success haptic (iOS)
-8. On Error:
-   - Error alert with details
-   - Option to try different file
+6. On Error:
+   - Show error alert
+   - Remove failed entity
 ```
 
-### Save Project Flow
+### Save Project with Entities
 ```
-1. User clicks Save (Cmd+S)
-2. If new project:
+1. User triggers Save (Cmd+S)
+2. Serialize entities:
+   - Convert each entity to ProjectEntityData
+   - Include transform, type-specific data
+   - Create ProjectSceneData
+3. If new project:
    - Name dialog appears
-   - User enters project name
-   - Location picker shows
-   - Default: ~/Documents/RealityViewport Projects
-3. Create .rvproject directory structure
-4. Save progress indicator
-5. Copy referenced assets to project
-6. Update window title with project name
-7. Enable incremental save
+   - Location picker (default: ~/Documents)
+4. Write JSON to .rvproject
+5. Update window title
+6. Add to recent projects
 ```
-
-### New Project with Naming
-```
-File → New Project
-   ↓
-Modal Sheet Appears
-   ├─→ Project Name Field (Required)
-   ├─→ Location Picker (Browse button)
-   ├─→ Template Selection (Future)
-   └─→ Create/Cancel Buttons
-   
-Validation:
-   - Non-empty name
-   - Valid filesystem characters
-   - Unique in target directory
-   
-On Create:
-   - Close current project (with save prompt)
-   - Create project structure
-   - Open new empty scene
-```
-
-## Error States
-
-### Import Failures
-```
-Failed Import → Error Alert
-   ├─→ Unsupported Format
-   ├─→ Corrupted File
-   └─→ Memory Issue
-   
-Recovery: Return to previous state
-```
-
-### Project Load Failures
-```
-Failed Load → Error Dialog
-   ├─→ Missing Files
-   ├─→ Version Mismatch
-   └─→ Corrupted Project
-   
-Recovery: Offer to create new project
-```
-
-## Keyboard Navigation
-
-### Global Shortcuts (macOS)
-| Shortcut | Action |
-|----------|---------|
-| Cmd+N | New Project |
-| Cmd+O | Open Project |
-| Cmd+S | Save Project |
-| Cmd+Z | Undo (future) |
-| Delete | Delete Selected |
-| Space | Toggle Mode |
-
-### Navigation Shortcuts
-| Key | Action |
-|-----|---------|
-| F | Focus on Selected |
-| G | Toggle Grid |
-| H | Toggle Gizmos |
-| Tab | Next UI Element |
 
 ## Platform-Specific Navigation
 
-### macOS Navigation Features
+### Adaptive ContentView Behavior
 ```yaml
-menu_bar_integration:
-  - File menu with all project operations
-  - Edit menu with transform tools
-  - View menu with viewport options
-  - Window menu with panel toggles
-
-keyboard_navigation:
-  - Tab through UI elements
-  - Arrow keys for list navigation
-  - Space for button activation
-  - Escape to cancel modals
-
-context_menus:
-  - Right-click on entities
-  - Right-click in viewport
-  - Right-click in outliner
-
-window_management:
-  - Resizable inspector panels
-  - Detachable panels (future)
-  - Full screen mode support
+size_class_detection:
+  compact: < 600pt width
+  regular: >= 600pt width
+  
+layout_switching:
+  regular:
+    type: NavigationSplitView
+    inspector: sidebar (320pt)
+    toolbar: top_leading
+    
+  compact:
+    type: NavigationStack
+    inspector: sheet overlay
+    toolbar: bottom_floating
 ```
 
-### iOS Navigation Adaptations
+### macOS Features
 ```yaml
-gesture_shortcuts:
-  - Three-finger tap: Undo
-  - Three-finger swipe: Redo
-  - Two-finger double tap: Reset view
-  - Long press: Context menu
+menu_bar:
+  File: New/Open/Save with entities
+  Edit: Entity operations
+  View: Viewport options, day/night
+  Add: Create entities submenu
 
-touch_optimizations:
-  - 44pt minimum touch targets
-  - Expanded hit areas for gizmos
-  - Touch-and-hold for precision
-  - Haptic feedback on actions
-
-modal_presentations:
-  - Sheet style for file operations
-  - Popover for quick options
-  - Full screen for immersive edit
+keyboard:
+  Cmd+N: New project (clear entities)
+  Cmd+S: Save entities
+  Delete: Remove selected entity
+  Space: Toggle interaction mode
 ```
 
-### tvOS Remote Navigation
+### iOS Adaptations
 ```yaml
-focus_engine:
-  - Automatic focus guides
-  - Focus rings on UI elements
-  - Directional navigation
-
-remote_mappings:
-  - Swipe: Navigate/Orbit
-  - Click: Select/Activate
-  - Play/Pause: Mode toggle
-  - Menu: Back/Context
-
-simplified_ui:
-  - Larger UI elements
-  - Reduced information density
-  - Clear focus indicators
+gestures:
+  entity_selection: tap with hit test
+  gizmo_interaction: direct manipulation
+  context_menu: long press on entity
+  
+haptics:
+  entity_created: .light
+  entity_selected: .selection
+  mode_changed: .medium
 ```
+
+## Error Recovery
+
+### Entity Load Failures
+```
+Failed ModelEntity Load → Error Alert
+   ├─→ Invalid Format: Remove entity
+   ├─→ Missing File: Offer re-link
+   └─→ Memory Issue: Suggest smaller model
+   
+Recovery: Fallback to placeholder cube
+```
+
+### Project Entity Deserialization
+```
+Failed Entity Recreation → Warning Log
+   ├─→ Unknown type: Skip entity
+   ├─→ Corrupt data: Use defaults
+   └─→ Missing assets: Placeholder
+   
+Recovery: Load partial scene
+```
+
+## Keyboard Shortcuts (Entity Operations)
+
+### Global (All Platforms)
+| Shortcut | Action | Entity Impact |
+|----------|--------|---------------|
+| Space | Toggle Mode | Change interaction |
+| Delete | Delete Entity | Remove from scene |
+| F | Focus Entity | Frame selected |
+| G | Toggle Grid | Metal grid visibility |
+| D | Duplicate | Clone selected entity |
+
+### Transform (Entity Mode)
+| Key | Action | Entity Change |
+|-----|--------|---------------|
+| W | Move Tool | Gizmo mode |
+| E | Rotate Tool | Gizmo mode |
+| R | Scale Tool | Gizmo mode |
+| Q | Select Tool | No gizmo |
+
+## Day/Night Cycle Navigation
+
+### Time Control
+```
+Automatic Cycle (Default)
+   ├─→ 2 minute full cycle
+   ├─→ Smooth phase transitions
+   └─→ Updates Metal sky shader
+
+Manual Control (Debug)
+   ├─→ Slider in debug panel
+   ├─→ Jump to phase buttons
+   └─→ Pause/resume cycle
+```
+
+## Summary
+
+Navigation v3.0 fully embraces:
+- ✅ **Entity/ECS system** - All operations on entities, not nodes
+- ✅ **Adaptive UI** - Single ContentView for all platforms
+- ✅ **Metal rendering** - GPU-accelerated viewport layers
+- ✅ **Async operations** - Non-blocking model loading
+- ✅ **Type-safe managers** - Clear separation of concerns
+
+The navigation system provides intuitive flows for entity manipulation while maintaining platform-appropriate interactions.

@@ -1,13 +1,25 @@
 # RealityViewport ViewportState Documentation
 
-**Purpose**: Document the central ViewportState management system  
-**Version**: 1.0  
-**Criticality**: Core architectural component  
-**Last Updated**: July 2025
+**Purpose**: Document the central ViewportState management system with Entity/ECS architecture  
+**Version**: 2.0  
+**Criticality**: Core architectural component - Uses RealityKit.Entity directly  
+**Last Updated**: August 2025
+
+## ⚠️ CRITICAL: Type Disambiguation
+
+ViewportState uses `RealityKit.Entity` DIRECTLY, not the custom Entity wrapper class:
+
+```swift
+// ViewportState uses RealityKit types explicitly
+let rootEntity = RealityKit.Entity()      // NOT custom Entity
+let cameraEntity = PerspectiveCamera()    // RealityKit subclass
+var lightEntities: [UUID: RealityKit.Entity] = [:]  // RealityKit entities
+var currentGizmo: RealityKit.Entity?      // RealityKit entity
+```
 
 ## Overview
 
-ViewportState is the single source of truth for all 3D viewport rendering and interaction. It orchestrates camera positioning, interaction modes, gizmo management, and RealityKit entity lifecycle.
+ViewportState is the single source of truth for all 3D viewport rendering and interaction, managing RealityKit entities directly without going through the custom Entity wrapper layer. This provides clean separation between the UI entity system and the rendering entity system.
 
 ## Architecture Position
 
@@ -15,225 +27,331 @@ ViewportState is the single source of truth for all 3D viewport rendering and in
 RealityViewportApp
 └── ContentView
     └── ViewportView
-        ├── ViewportState (ObservableObject) ← Central State
-        │   ├── Camera Management
-        │   ├── Interaction Mode Control
-        │   ├── Gizmo Lifecycle
-        │   └── Entity References
+        ├── ViewportState (ObservableObject) ← RealityKit.Entity Management
+        │   ├── rootEntity: RealityKit.Entity
+        │   ├── cameraEntity: PerspectiveCamera (RealityKit)
+        │   ├── lightEntities: [UUID: RealityKit.Entity]
+        │   └── currentGizmo: RealityKit.Entity?
         ├── CameraController (uses ViewportState)
-        └── TransformGizmo (rendered via ViewportState)
+        └── SceneManager (provides Entity wrappers)
 ```
 
-## Core Components
+## Core Implementation
+
+### Current ViewportState Class
+```swift
+@MainActor
+class ViewportState: ObservableObject {
+    // RealityKit entities - NOT custom Entity wrappers
+    let rootEntity = RealityKit.Entity()
+    let cameraEntity = PerspectiveCamera()
+    var lightEntities: [UUID: RealityKit.Entity] = [:]
+    
+    // Viewport properties
+    var viewportSize: CGSize = .zero
+    var mouseLocation: CGPoint = .zero
+    var lastDragValue: CGSize = .zero
+    @Published var needsUpdate: Bool = false
+    
+    // Gizmo tracking
+    var currentGizmo: RealityKit.Entity?
+    
+    // Camera state
+    var cameraDistance: Float = 10.0
+    var cameraAzimuth: Float = 0.785  // 45 degrees
+    var cameraElevation: Float = 0.523  // 30 degrees
+    var cameraTarget: SIMD3<Float> = [0, 0, 0]
+    
+    // Interaction mode
+    @Published var interactionMode: ViewportInteractionMode = .environment
+}
+```
+
+## Camera Mathematics (CORRECTED)
+
+### Spherical Coordinate System
+```swift
+func computeCameraPosition() -> SIMD3<Float> {
+    // Note: Different from v1.0 documentation - this is the actual implementation
+    let x = cameraDistance * sin(cameraAzimuth) * cos(cameraElevation)
+    let y = cameraDistance * sin(cameraElevation)
+    let z = cameraDistance * cos(cameraAzimuth) * cos(cameraElevation)
+    return cameraTarget + SIMD3<Float>(x, y, z)
+}
+```
+
+**Key Properties:**
+- `cameraDistance`: Radius from target (zoom level) - default 10.0
+- `cameraAzimuth`: Horizontal rotation angle - default 0.785 (45°)
+- `cameraElevation`: Vertical rotation angle - default 0.523 (30°)
+- `cameraTarget`: Point camera orbits around - default [0,0,0]
+
+## Interaction Modes
 
 ### ViewportInteractionMode
 ```swift
 enum ViewportInteractionMode: String, CaseIterable {
-    case environment = "Environment"  // Camera manipulation
-    case entity = "Entity"           // Object selection/transformation
+    case environment  // Camera/viewport manipulation
+    case entity      // Entity selection and transformation
 }
 ```
 
 **Mode Behaviors:**
 - **Environment Mode**: All gestures control camera (orbit, pan, zoom)
-- **Entity Mode**: Gestures select/transform objects, camera mostly locked
+- **Entity Mode**: Gestures select/transform entities, camera mostly locked
 
-### Camera Mathematics
+## Entity Bridge Pattern
 
-**Spherical Coordinate System:**
+### How ViewportState Works with Custom Entities
+
+ViewportState doesn't know about custom Entity wrappers. Instead:
+
+1. **SceneManager** manages custom Entity instances
+2. **SceneManager** provides RealityKit.Entity to ViewportState
+3. **ViewportState** manages RealityKit.Entity directly
+
 ```swift
-class ViewportState: ObservableObject {
-    @Published var cameraDistance: Float = 5.0
-    @Published var cameraRotation: SIMD2<Float> = .zero
-    @Published var cameraTarget: SIMD3<Float> = .zero
+// SceneManager adds entity's RealityKit representation
+func addEntityToViewport(_ entity: Entity) {
+    let rkEntity = entity.realityEntity  // Get RealityKit.Entity
+    viewportState.rootEntity.addChild(rkEntity)
     
-    // Spherical to Cartesian conversion
-    var cameraPosition: SIMD3<Float> {
-        let x = cameraDistance * cos(cameraRotation.y) * sin(cameraRotation.x)
-        let y = cameraDistance * sin(cameraRotation.y)
-        let z = cameraDistance * cos(cameraRotation.y) * cos(cameraRotation.x)
-        return cameraTarget + SIMD3(x, y, z)
+    // Track if it's a light
+    if entity is LightEntity {
+        viewportState.lightEntities[entity.id] = rkEntity
     }
 }
 ```
-
-**Key Properties:**
-- `cameraDistance`: Radius from target (zoom level)
-- `cameraRotation`: X=azimuth, Y=elevation angles
-- `cameraTarget`: Point camera orbits around
 
 ## State Management
 
 ### Published Properties
 ```swift
-@Published var needsSceneUpdate = false
-@Published var currentMode: ViewportInteractionMode = .environment
-@Published var selectedEntity: Entity?
-@Published var gizmoEntity: Entity?
-@Published var isGizmoVisible = true
+@Published var needsUpdate: Bool = false
+@Published var interactionMode: ViewportInteractionMode = .environment
 ```
 
-### Update Trigger Pattern
+### Update Pattern
 ```swift
-// Any significant state change triggers scene update
-private func triggerUpdate() {
-    needsSceneUpdate.toggle()
+// Toggle needsUpdate to trigger RealityView updates
+func triggerUpdate() {
+    needsUpdate.toggle()
 }
 ```
 
-## Gizmo Lifecycle
+## Gizmo Management
 
-### Gizmo Creation
+### Current Gizmo Tracking
 ```swift
-func createGizmo(for entity: Entity) {
-    gizmoEntity?.removeFromParent()
+var currentGizmo: RealityKit.Entity?  // Stores active gizmo entity
+```
+
+### Gizmo Creation (via SceneManager)
+```swift
+// SceneManager creates gizmo for selected entity
+func updateGizmoForSelection(_ entity: Entity?) {
+    // Remove old gizmo
+    viewportState.currentGizmo?.removeFromParent()
+    viewportState.currentGizmo = nil
     
-    let newGizmo = TransformGizmo.createGizmoEntity()
-    newGizmo.position = entity.position
-    scene.addChild(newGizmo)
-    
-    gizmoEntity = newGizmo
+    if let entity = entity {
+        // Create new gizmo (RealityKit.Entity)
+        let gizmo = TransformGizmo.createGizmoEntity()
+        gizmo.position = entity.position
+        viewportState.rootEntity.addChild(gizmo)
+        viewportState.currentGizmo = gizmo
+    }
 }
 ```
 
-### Gizmo Visibility Rules
-- Hidden in Environment mode
-- Shown when entity selected in Entity mode
-- Scales with camera distance for consistent size
-- Updates position to match selected entity
+## Light Entity Management
 
-## Entity Management
-
-### Entity References
+### Light Tracking
 ```swift
-// Core scene entities managed by ViewportState
-var cameraEntity: PerspectiveCamera?
-var gridEntity: Entity?
-var axisHelperEntity: Entity?
+var lightEntities: [UUID: RealityKit.Entity] = [:]
 ```
 
-### Entity Lifecycle
-1. **Creation**: Entities created on viewport initialization
-2. **Updates**: Transform updates through ViewportState only
-3. **Cleanup**: Proper removal and nil assignment
+### Light Registration
+```swift
+// When adding a light entity
+func registerLight(_ entityId: UUID, _ rkLight: RealityKit.Entity) {
+    lightEntities[entityId] = rkLight
+}
+
+// When removing a light entity  
+func unregisterLight(_ entityId: UUID) {
+    lightEntities[entityId]?.removeFromParent()
+    lightEntities.removeValue(forKey: entityId)
+}
+```
 
 ## Platform-Specific Adaptations
 
-### macOS
-- Precise mouse coordinates for gizmo interaction
-- Scroll wheel zoom with momentum
-- Right-click for context menus
+### Mouse/Trackpad State
+```swift
+var mouseLocation: CGPoint = .zero      // Current mouse position
+var lastDragValue: CGSize = .zero       // For drag delta calculation
+```
 
-### iOS
-- Touch-friendly gizmo hit areas (44pt minimum)
-- Pinch zoom with natural feel
-- Long press for selection options
-
-### tvOS
-- Focus-based entity selection
-- Remote swipe for camera orbit
-- Play/pause for mode toggle
+### Viewport Sizing
+```swift
+var viewportSize: CGSize = .zero  // Updated by ViewportView on resize
+```
 
 ## Integration Points
 
-### With CameraController
+### With RealityView
 ```swift
-// CameraController reads ViewportState
-let position = viewportState.cameraPosition
-let target = viewportState.cameraTarget
-
-// But updates through methods
-viewportState.updateCamera(rotation: newRotation)
-```
-
-### With SelectionManager
-```swift
-// Selection changes update ViewportState
-selectionManager.$selectedEntity
-    .sink { entity in
-        viewportState.selectedEntity = entity
-        viewportState.updateGizmo()
-    }
+RealityView { content in
+    content.add(viewportState.rootEntity)
+    content.add(viewportState.cameraEntity)
+} update: { _ in
+    // Triggered by needsUpdate changes
+}
 ```
 
 ### With SceneManager
 ```swift
-// Scene changes trigger viewport updates
-sceneManager.$rootEntity
-    .sink { _ in
-        viewportState.triggerUpdate()
+// SceneManager bridges custom entities to ViewportState
+class SceneManager {
+    func syncToViewport() {
+        for entity in entities {
+            let rkEntity = entity.realityEntity
+            viewportState.rootEntity.addChild(rkEntity)
+        }
     }
+}
 ```
+
+### With CameraController
+```swift
+// CameraController modifies ViewportState directly
+class CameraController {
+    func updateCamera(azimuth: Float, elevation: Float) {
+        viewportState.cameraAzimuth = azimuth
+        viewportState.cameraElevation = elevation
+        viewportState.cameraEntity.position = viewportState.computeCameraPosition()
+    }
+}
+```
+
+## Critical Distinctions from v1.0
+
+| v1.0 Documentation | v2.0 Reality |
+|-------------------|--------------|
+| References Node system | Uses Entity system |
+| Custom Entity refs | RealityKit.Entity only |
+| Wrong camera math | Corrected sin/cos order |
+| Gizmo methods shown | Gizmo managed externally |
+| Generic patterns | Actual implementation |
 
 ## Best Practices
 
-### DO: Use ViewportState Methods
+### DO: Maintain Type Clarity
 ```swift
-// Correct: Use provided methods
-viewportState.setInteractionMode(.entity)
-viewportState.focusOnEntity(modelNode.entity)
+// Always be explicit about which Entity type
+let customEntity = Entity()                    // Custom wrapper
+let rkEntity = customEntity.realityEntity      // RealityKit.Entity
+viewportState.rootEntity.addChild(rkEntity)    // Uses RealityKit type
 ```
 
-### DON'T: Direct Property Mutation
+### DON'T: Mix Entity Types
 ```swift
-// Wrong: Direct mutation from views
-viewportState.cameraDistance = 10 // From random view
+// WRONG - Type mismatch
+viewportState.rootEntity = Entity()  // Error: expects RealityKit.Entity
+
+// CORRECT
+viewportState.rootEntity.addChild(entity.realityEntity)
 ```
 
-### DO: Observe needsSceneUpdate
+### DO: Use ViewportState for RealityKit Operations
 ```swift
-// React to scene changes
-viewportState.$needsSceneUpdate
-    .sink { _ in
-        renderScene()
-    }
+// ViewportState manages RealityKit entities
+viewportState.cameraEntity.position = newPosition
+viewportState.rootEntity.scale = newScale
 ```
 
-## Common Patterns
-
-### Mode Switching
+### DON'T: Store Custom Entities in ViewportState
 ```swift
-Button(action: {
-    viewportState.setInteractionMode(
-        viewportState.currentMode == .environment ? .entity : .environment
-    )
-}) {
-    Image(systemName: viewportState.currentMode.iconName)
-}
+// WRONG - ViewportState doesn't know about custom Entity
+viewportState.selectedEntity = myEntity  // No such property
+
+// CORRECT - Selection is in SelectionManager
+selectionManager.select(myEntity)
 ```
 
-### Gizmo Interaction
-```swift
-// In gesture handler
-if viewportState.currentMode == .entity,
-   let hit = hitTest(location),
-   hit.entity == viewportState.gizmoEntity {
-    // Handle gizmo drag
-}
-```
+## Common Operations
 
 ### Camera Reset
 ```swift
 func resetCamera() {
-    withAnimation(.easeInOut(duration: 0.5)) {
-        viewportState.cameraDistance = 5.0
-        viewportState.cameraRotation = .zero
-        viewportState.cameraTarget = .zero
+    viewportState.cameraDistance = 10.0
+    viewportState.cameraAzimuth = 0.785
+    viewportState.cameraElevation = 0.523
+    viewportState.cameraTarget = [0, 0, 0]
+    viewportState.cameraEntity.position = viewportState.computeCameraPosition()
+    viewportState.cameraEntity.look(at: viewportState.cameraTarget, from: viewportState.cameraEntity.position, relativeTo: nil)
+}
+```
+
+### Mode Toggle
+```swift
+func toggleInteractionMode() {
+    viewportState.interactionMode = 
+        viewportState.interactionMode == .environment ? .entity : .environment
+    
+    // Update gizmo visibility
+    if viewportState.interactionMode == .environment {
+        viewportState.currentGizmo?.isEnabled = false
+    } else {
+        viewportState.currentGizmo?.isEnabled = true
     }
 }
 ```
 
+### Update Trigger
+```swift
+// Force RealityView update
+viewportState.needsUpdate.toggle()
+```
+
 ## Performance Considerations
 
-- **Update Batching**: Multiple state changes trigger single render
-- **Lazy Gizmo Creation**: Only create when needed
-- **Efficient Hit Testing**: Cache hit test results during drag
-- **Minimal Publishing**: Only publish changes that affect UI
+- **Direct RealityKit Access**: No wrapper overhead
+- **Minimal Publishing**: Only two @Published properties
+- **Efficient Updates**: Toggle pattern for needsUpdate
+- **Lazy Gizmo Creation**: Only when entity selected
+- **Light Tracking**: O(1) lookup via dictionary
+
+## Migration Notes (v1.0 → v2.0)
+
+### What Changed
+- All Node references → Entity references
+- Custom Entity storage → RealityKit.Entity only
+- Camera math corrected (sin/cos order)
+- Gizmo creation moved to external managers
+- Light entity tracking added
+
+### Breaking Changes
+- No selectedEntity property (use SelectionManager)
+- No Entity wrapper storage (use SceneManager)
+- Camera computation function different
+- Gizmo lifecycle managed externally
 
 ## Future Enhancements
 
 - [ ] Multiple viewport support
-- [ ] Saved camera positions
-- [ ] Viewport overlays (stats, grid options)
-- [ ] Custom gizmo styles
-- [ ] Animation system integration
+- [ ] Viewport overlay system
+- [ ] Performance metrics tracking
+- [ ] Camera bookmarks
+- [ ] Grid configuration in state
+- [ ] Debug visualization options
+
+## Summary
+
+ViewportState v2.0 is a focused, type-safe manager for RealityKit entities that:
+- ✅ Uses RealityKit.Entity directly (no custom Entity wrappers)
+- ✅ Provides clean separation from UI entity system
+- ✅ Manages camera, lights, and gizmos efficiently
+- ✅ Integrates cleanly with SceneManager bridge pattern
+- ✅ Maintains high performance with minimal overhead

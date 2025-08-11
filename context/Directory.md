@@ -1,6 +1,7 @@
-lithalean@Tylers-Mac-mini ~ % cd /Users/lithalean/Documents/Developer/3_Build/Xcode/RealityViewport
-lithalean@Tylers-Mac-mini RealityViewport % tree
+lithalean@Mac ~ % cd /Users/lithalean/Documents/Developer/3_Build/Xcode/RealityViewport
+lithalean@Mac RealityViewport % tree
 .
+├── analyze_project.sh
 ├── RealityViewport
 │   ├── App
 │   │   ├── ContentView.swift
@@ -17,30 +18,38 @@ lithalean@Tylers-Mac-mini RealityViewport % tree
 │   │   │   ├── EditorComponents.swift
 │   │   │   └── TransformGizmo.swift
 │   │   ├── Data
+│   │   │   ├── ExportFormat.swift
 │   │   │   ├── LightData.swift
 │   │   │   └── TransformData.swift
 │   │   ├── Extensions
+│   │   │   ├── FileDialogs.swift
 │   │   │   ├── HelperExtensions.swift
 │   │   │   ├── Math+Matrix.swift
 │   │   │   ├── MathExtensions.swift
 │   │   │   └── NotificationExtension.swift
 │   │   ├── Managers
 │   │   │   ├── ControlManager.swift
+│   │   │   ├── DayNightManager.swift
 │   │   │   ├── ProjectManager.swift
 │   │   │   ├── SceneManager.swift
 │   │   │   └── SelectionManager.swift
-│   │   ├── Nodes
-│   │   │   ├── CameraNode.swift
-│   │   │   ├── LightNode.swift
-│   │   │   ├── ModelNode.swift
-│   │   │   └── SceneNode.swift
+│   │   ├── MetalGridRenderer.swift
+│   │   ├── MetalRenderer.swift
+│   │   ├── MetalSkyRenderer.swift
+│   │   ├── Shaders
+│   │   │   ├── DayNightBackgroundShader.metal
+│   │   │   └── GridShader.metal
 │   │   ├── Systems
 │   │   │   └── BillboardSystem.swift
 │   │   └── Utilities
 │   │       ├── GridHelper.swift
 │   │       └── SceneStatistics.swift
-│   ├── en.lproj
-│   ├── info.plist
+│   ├── Entities
+│   │   ├── CameraEntity.swift
+│   │   ├── Entity.swift
+│   │   ├── LightEntity.swift
+│   │   ├── ModelEntity.swift
+│   │   └── SceneEntity.swift
 │   ├── Inspector
 │   │   ├── CameraController+ViewportSupport.swift
 │   │   ├── InspectorView.swift
@@ -56,7 +65,10 @@ lithalean@Tylers-Mac-mini RealityViewport % tree
 │   │       │   ├── HitTesting.swift
 │   │       │   ├── KeyboardShortcuts.swift
 │   │       │   └── ScrollWheelHandler.swift
-│   │       └── PlatformColor.swift
+│   │       ├── GameColors.swift
+│   │       ├── PlatformAliases.swift
+│   │       ├── PlatformColor.swift
+│   │       └── SharedTypes.swift
 │   ├── Viewport
 │   │   ├── CameraController.swift
 │   │   ├── ViewportAxisHelper.swift
@@ -64,6 +76,7 @@ lithalean@Tylers-Mac-mini RealityViewport % tree
 │   │   ├── ViewportEntityFactory.swift
 │   │   ├── ViewportGrid.swift
 │   │   ├── ViewportIconFactory.swift
+│   │   ├── ViewportMetalGrid.swift
 │   │   ├── ViewportState.swift
 │   │   ├── ViewportToolbar.swift
 │   │   ├── ViewportView.swift
@@ -72,11 +85,10 @@ lithalean@Tylers-Mac-mini RealityViewport % tree
 │       ├── Console
 │       │   └── FileSystemModel.swift
 │       ├── FileSystem.swift
-│       ├── iPhone
-│       │   └── iPhoneView.swift
-│       ├── Mac
-│       │   └── MacView.swift
+│       ├── MetalGridTest.swift
+│       ├── MetalSkyTest.swift
 │       └── ProjectBrowserView.swift
+├── realityviewport_analysis_20250810_140156.txt
 └── RealityViewport.xcodeproj
     ├── project.pbxproj
     ├── project.xcworkspace
@@ -94,5 +106,5 @@ lithalean@Tylers-Mac-mini RealityViewport % tree
             └── xcschemes
                 └── xcschememanagement.plist
 
-35 directories, 58 files
-lithalean@Tylers-Mac-mini RealityViewport % 
+33 directories, 72 files
+lithalean@Mac RealityViewport % 

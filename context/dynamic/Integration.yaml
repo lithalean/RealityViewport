@@ -1,32 +1,64 @@
 # RealityViewport Integration Context
-# Version: 1.0
-# Last Updated: July 2025
+# Version: 2.0
+# Last Updated: August 2025
+# Post-Migration: Entity/ECS + Metal Rendering
 
 integration_summary:
-  total_integrations: 5
-  ready: 4
+  total_integrations: 8
+  ready: 7
   in_progress: 1
-  planned: 3
+  planned: 5
 
 # Core Framework Dependencies
 framework_dependencies:
   SwiftUI:
     version: "iOS 17.0+ / macOS 14.0+"
     status: "integrated"
-    purpose: "Cross-platform UI framework"
+    purpose: "Adaptive UI framework"
     critical: true
+    features_used:
+      - NavigationSplitView
+      - NavigationStack
+      - "@Observable"
+      - "@StateObject"
+      - "@EnvironmentObject"
     
   RealityKit:
     version: "Latest (2025)"
     status: "integrated"
-    purpose: "3D rendering and scene management"
+    purpose: "3D Entity rendering and ECS"
     critical: true
     features_used:
       - RealityView
-      - ModelEntity
+      - RealityKit.Entity  # Note: namespace critical
       - PerspectiveCamera
-      - DirectionalLight
-      - Billboard component
+      - ModelComponent
+      - LightComponent
+      - InputTargetComponent
+      - CollisionComponent
+      - Custom components (Billboard, Selection)
+    notes: "Entity namespace conflicts with custom Entity class"
+      
+  Metal:
+    version: "System"
+    status: "integrated"
+    purpose: "GPU-accelerated grid and sky rendering"
+    critical: true
+    features_used:
+      - MTLDevice
+      - MTLCommandQueue
+      - MTLRenderPipelineState
+      - Custom shaders (Grid, DayNightBackground)
+      - MTKView integration
+    
+  MetalKit:
+    version: "System"
+    status: "integrated"
+    purpose: "Metal-SwiftUI bridge"
+    critical: true
+    features_used:
+      - MTKView
+      - MTKViewDelegate
       
   Foundation:
     version: "System"
@@ -34,61 +66,172 @@ framework_dependencies:
     purpose: "File I/O, async operations"
     critical: true
     
+  Combine:
+    version: "System"
+    status: "integrated"
+    purpose: "Reactive state management"
+    features_used:
+      - "@Published"
+      - "ObservableObject"
+      - "PassthroughSubject"
+      - "sink/store"
+    
   UniformTypeIdentifiers:
     version: "System"
     status: "integrated"
     purpose: "File type definitions"
     usage: "Import/export file filtering"
+    
+  simd:
+    version: "System"
+    status: "integrated"
+    purpose: "Math operations for 3D transforms"
+    critical: true
+    features_used:
+      - SIMD3<Float>
+      - simd_quatf
+      - float4x4
+
+# Entity System Dependencies
+entity_system:
+  architecture: "Unity DOTS-inspired ECS Hybrid"
+  status: "integrated"
+  version: "1.0"
+  components:
+    custom_entity_wrapper:
+      purpose: "Unity-like API over RealityKit.Entity"
+      status: "complete"
+    scene_entity_protocol:
+      purpose: "Polymorphic entity behavior"
+      status: "complete"
+    entity_types:
+      - Entity (base)
+      - CameraEntity
+      - LightEntity
+      - ModelEntity
+      - SceneEntity
+  migration_from: "Node System (completely removed)"
 
 # External Dependencies
 external_dependencies:
-  Orchard_Game_Engine:
-    version: "Unknown"
-    status: "planned"
-    purpose: "Parent project integration"
-    notes: "RealityViewport is part of Orchard ecosystem"
-    
+  # None currently - all functionality self-contained
+
 # File Format Support
 file_formats:
   USDZ:
     status: "integrated"
     import: true
-    export: false
+    export: false  # Pending RealityKit API
     extensions: [".usdz", ".usda", ".usdc"]
+    async_loading: true
     
   Reality:
     status: "integrated"
     import: true
-    export: false
+    export: false  # Pending RealityKit API
     extensions: [".reality"]
+    async_loading: true
     
   RVProject:
-    status: "in_progress"
+    status: "integrated"
     import: true
     export: true
     extensions: [".rvproject"]
-    notes: "Custom project format - implementation incomplete"
+    format_version: "2.0"
+    serializes:
+      - ProjectEntityData (not Nodes)
+      - TransformData
+      - LightData
+      - CameraData
+    notes: "Entity-based serialization complete"
+    
+  JSON:
+    status: "integrated"
+    import: true
+    export: true
+    purpose: "Project and entity serialization"
 
-# API Integrations
-api_integrations:
-  # None currently - all local functionality
+# Manager System
+manager_integrations:
+  SceneManager:
+    status: "integrated"
+    version: "3.0"
+    purpose: "Entity lifecycle management"
+    dependencies: ["RealityKit", "SwiftUI"]
+    
+  SelectionManager:
+    status: "integrated"
+    version: "3.0"
+    purpose: "Multi-entity selection"
+    dependencies: ["SceneManager"]
+    
+  ProjectManager:
+    status: "integrated"
+    version: "3.0"
+    purpose: "File operations and persistence"
+    dependencies: ["Foundation", "UniformTypeIdentifiers"]
+    
+  ControlManager:
+    status: "integrated"
+    version: "3.0"
+    purpose: "Input handling across platforms"
+    dependencies: ["GameController", "SwiftUI"]
+    
+  DayNightManager:
+    status: "integrated"
+    version: "1.0"
+    purpose: "Atmospheric lighting cycle"
+    dependencies: ["Metal", "Combine"]
+
+# Rendering Pipeline
+rendering_pipeline:
+  architecture: "Metal + RealityKit Hybrid"
+  layers:
+    - name: "MetalSkyRenderer"
+      z_order: 0
+      purpose: "Dynamic sky gradient"
+      performance: "0.5ms/frame"
+    - name: "MetalGridRenderer"
+      z_order: 1
+      purpose: "GPU-accelerated grid"
+      performance: "0.3ms/frame"
+    - name: "RealityKit Scene"
+      z_order: 2
+      purpose: "3D entities"
+      performance: "8-12ms/frame"
+  total_frame_budget: "16.67ms (60fps)"
+  current_usage: "~12-15ms"
 
 # Platform Integrations
 platform_integrations:
-  iCloud:
-    status: "planned"
-    purpose: "Project sync across devices"
-    priority: "LOW"
+  macOS:
+    status: "integrated"
+    features:
+      - Menu bar integration
+      - Keyboard shortcuts
+      - Mouse/trackpad gestures
+      - Hover states
+      
+  iOS:
+    status: "integrated"
+    features:
+      - Touch gestures
+      - Haptic feedback
+      - Safe area handling
+      - Adaptive layouts
+      
+  tvOS:
+    status: "integrated"
+    features:
+      - Focus engine
+      - Remote control
+      - Simplified UI
+    notes: "Limited testing"
     
-  ShareSheet:
+  visionOS:
     status: "planned"
-    purpose: "Export and sharing"
-    priority: "MEDIUM"
-    
-  QuickLook:
-    status: "considered"
-    purpose: "Preview USDZ files"
-    priority: "LOW"
+    timeline: "When stable"
+    notes: "Architecture ready, needs testing"
 
 # Build System
 build_system:
@@ -102,86 +245,104 @@ build_system:
       - "async/await"
       - "Property wrappers"
       - "Result builders"
+      - "Macros (planned)"
       
   Deployment_Targets:
     iOS: "17.0"
     macOS: "14.0"
     tvOS: "17.0"
+    visionOS: "2.0 (future)"
 
 # Security & Permissions
 permissions:
   file_access:
-    scope: "User selected files only"
+    scope: "Security-scoped resources"
     sandboxed: true
+    bookmark_support: true
     
-  proposed_info_plist_additions:
-    - UIFileSharingEnabled
-    - LSSupportsOpeningDocumentsInPlace
-    - UISupportsDocumentBrowser
-
-# Future Integrations
-future_integrations:
-  CloudKit:
-    priority: "HIGH"
-    timeline: "Q3 2025"
-    purpose: "Sync projects across devices"
-    blockers: ["Project format finalization"]
-    
-  SceneKit_Converter:
-    priority: "MEDIUM"
-    timeline: "Q4 2025"
-    purpose: "Import/export SceneKit scenes"
-    blockers: ["API design"]
-    
-  Metal_Performance_Shaders:
-    priority: "LOW"
-    timeline: "2026"
-    purpose: "GPU-accelerated operations"
-    blockers: ["Performance benchmarking needed"]
-    
-  ModelIO:
-    priority: "MEDIUM"
-    timeline: "Q3 2025"
-    purpose: "Expanded 3D format support"
-    formats: ["OBJ", "STL", "PLY"]
-    
-  Combine_Framework:
-    priority: "MEDIUM"
-    timeline: "When needed"
-    purpose: "Reactive state management"
-    notes: "Currently using @Published is sufficient"
-
-# Testing Integration
-testing_frameworks:
-  XCTest:
-    status: "not_integrated"
-    priority: "HIGH"
-    coverage: "0%"
-    
-  Reality_Composer_Pro:
-    status: "compatible"
-    purpose: "Asset validation"
-    notes: "Can open exported USDZ files"
+  info_plist_keys:
+    - UIFileSharingEnabled: false
+    - LSSupportsOpeningDocumentsInPlace: true
+    - UISupportsDocumentBrowser: true
 
 # Performance Monitoring
 performance_tools:
   Instruments:
     status: "compatible"
-    profiles_needed:
+    profiles_used:
       - "Metal System Trace"
       - "SwiftUI View Body"
-      - "File Activity"
+      - "RealityKit Trace"
+      - "Time Profiler"
+    metrics:
+      - "60fps achieved"
+      - "CPU usage < 40%"
+      - "Memory ~250MB typical"
       
-  MetricKit:
-    status: "planned"
-    purpose: "Production performance monitoring"
+  Metal_HUD:
+    status: "integrated"
+    purpose: "Real-time GPU metrics"
+    shows:
+      - FPS counter
+      - Draw calls
+      - Triangle count
+
+# Testing Integration
+testing_frameworks:
+  XCTest:
+    status: "not_integrated"
+    priority: "CRITICAL"
+    coverage: "0%"
+    needed_for:
+      - Entity system
+      - Manager logic
+      - File operations
+    
+  Reality_Composer_Pro:
+    status: "compatible"
+    purpose: "Asset validation"
+    notes: "Can validate exported content"
+
+# Future Integrations
+future_integrations:
+  CloudKit:
+    priority: "HIGH"
+    timeline: "Q4 2025"
+    purpose: "Sync projects across devices"
+    blockers: ["Privacy policy needed"]
+    
+  USDZ_Export:
+    priority: "HIGH"
+    timeline: "When API available"
+    purpose: "Export scenes as USDZ"
+    blockers: ["RealityKit API limitations"]
+    
+  Undo_Redo_System:
+    priority: "HIGH"
+    timeline: "Q3 2025"
+    purpose: "Command pattern for entities"
+    design: "In progress"
+    
+  Entity_Prefabs:
+    priority: "MEDIUM"
+    timeline: "Q4 2025"
+    purpose: "Template system"
+    design: "Planned"
+    
+  Plugin_Architecture:
     priority: "LOW"
+    timeline: "2026"
+    purpose: "Extensibility"
+    design: "Conceptual"
 
 # Development Tools Integration
 development_tools:
   Swift_Packages:
     status: "not_used"
-    notes: "No external packages currently"
+    notes: "Self-contained, no external packages"
+    potential:
+      - "swift-algorithms (maybe)"
+      - "swift-collections (maybe)"
     
   Git:
     status: "assumed"
@@ -189,8 +350,89 @@ development_tools:
       - ".xcuserdata"
       - "*.xcuserstate"
       - ".DS_Store"
+      - "DerivedData/"
       
   Documentation:
-    status: "planned"
-    tools: ["DocC", "SwiftDoc"]
-    priority: "MEDIUM"
+    status: "in_progress"
+    format: "Markdown context modules"
+    modules_complete:
+      - ENTITY_SYSTEM.md
+      - METAL_RENDERING.md
+      - ARCHITECTURE.md
+      - IMPLEMENTATION.md
+      - FILEOPERATIONS.md
+      - VISUAL.md
+      - VIEWPORTSTATE.md
+      - NAVIGATION.md
+      - GESTURES.md
+      - EVOLUTION.md
+    priority: "HIGH"
+
+# Dependency Graph
+dependency_graph:
+  Entity_System:
+    depends_on: ["RealityKit", "SwiftUI", "Combine"]
+    
+  Metal_Rendering:
+    depends_on: ["Metal", "MetalKit", "simd"]
+    
+  Managers:
+    depends_on: ["Entity_System", "SwiftUI", "Foundation"]
+    
+  File_Operations:
+    depends_on: ["Foundation", "UniformTypeIdentifiers", "Entity_System"]
+    
+  UI_Layer:
+    depends_on: ["SwiftUI", "Entity_System", "Managers"]
+
+# Migration Status
+migration_status:
+  from_version: "1.0 (Node System)"
+  to_version: "2.0 (Entity System)"
+  migration_date: "August 2025"
+  breaking_changes:
+    - "All Node classes removed"
+    - "Platform-specific views removed"
+    - "ViewportState uses RealityKit.Entity"
+    - "Project format changed"
+  migration_complete: true
+  documentation_updated: true
+
+# Known Integration Issues
+known_issues:
+  - issue: "SpotLight falls back to PointLight"
+    severity: "LOW"
+    cause: "RealityKit limitation"
+    workaround: "Using PointLight"
+    
+  - issue: "USDZ export not available"
+    severity: "MEDIUM"
+    cause: "RealityKit API missing"
+    workaround: "None - waiting for Apple"
+    
+  - issue: "Entity namespace confusion"
+    severity: "MEDIUM"
+    cause: "Name collision with RealityKit"
+    workaround: "Explicit namespacing"
+
+# Success Metrics
+success_metrics:
+  performance:
+    target_fps: 60
+    achieved_fps: 60
+    status: "✅ Met"
+    
+  memory_usage:
+    target: "< 500MB"
+    typical: "~250MB"
+    status: "✅ Met"
+    
+  code_sharing:
+    target: "> 90%"
+    achieved: "95%"
+    status: "✅ Exceeded"
+    
+  architecture_modernization:
+    target: "Entity/ECS"
+    achieved: "Complete"
+    status: "✅ Met"

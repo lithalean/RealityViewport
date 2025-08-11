@@ -1,37 +1,38 @@
 # RealityViewport Gesture & Input Documentation
 
-**Purpose**: Document sophisticated gesture and input handling  
-**Version**: 1.0  
+**Purpose**: Document sophisticated gesture and input handling with Entity/ECS system  
+**Version**: 2.0  
 **Complexity**: Platform-specific with unified behavior  
-**Last Updated**: July 2025
+**Last Updated**: August 2025
 
 ## Overview
 
-RealityViewport implements a mode-based gesture system that adapts to each platform while maintaining consistent behavior. Input is routed through ViewportState modes to appropriate handlers.
+RealityViewport implements a mode-based gesture system that adapts to each platform while maintaining consistent behavior. Input is routed through ViewportState modes to handle Entity manipulation or camera control.
 
-## Mode-Based Gesture Routing
+## Mode-Based Gesture Routing (Entity System)
 
 ### Input Flow
 ```
-User Input → Platform Gesture → ViewportState.currentMode → Handler
+User Input → Platform Gesture → ViewportState.interactionMode → Handler
                                         ↓
-                              Environment Mode → CameraController
+                              .environment → CameraController
                                         ↓
-                                Entity Mode → SelectionManager/Gizmo
+                                .entity → SelectionManager/Entity Transform
 ```
 
 ### Mode Definitions
 ```swift
 enum ViewportInteractionMode {
     case environment  // Camera manipulation
-    case entity      // Object selection/transformation
+    case entity      // Entity selection/transformation
     
-    func handleDrag(_ translation: CGSize, in viewport: ViewportView) {
+    func handleDrag(_ translation: CGSize, viewport: ViewportView, 
+                   sceneManager: SceneManager) {
         switch self {
         case .environment:
             viewport.cameraController.handleOrbitDrag(translation)
         case .entity:
-            viewport.handleEntityDrag(translation)
+            viewport.handleEntityDrag(translation, sceneManager: sceneManager)
         }
     }
 }
@@ -39,18 +40,21 @@ enum ViewportInteractionMode {
 
 ## Platform-Specific Input Differences
 
-### macOS Input Mapping
+### macOS Input Mapping (Entity-Aware)
 ```swift
 // Primary Input
 .gesture(
     DragGesture(minimumDistance: 1)
         .onChanged { value in
-            if viewportState.currentMode == .environment {
+            if viewportState.interactionMode == .environment {
                 // Left drag = orbit
                 cameraController.orbit(by: value.translation)
             } else {
-                // Left drag = select/move
-                handleEntityInteraction(at: value.location)
+                // Left drag = select/move entity
+                if let entity = hitTestEntity(at: value.location) {
+                    selectionManager.select(entity)
+                    handleEntityTransform(entity, delta: value.translation)
+                }
             }
         }
 )
@@ -71,13 +75,17 @@ enum ViewportInteractionMode {
 }
 ```
 
-### iOS Input Mapping
+### iOS Input Mapping (Entity-Aware)
 ```swift
 // Single Touch
 .gesture(
     DragGesture(minimumDistance: 10)
         .onChanged { value in
-            handleModeBasedDrag(value.translation)
+            if viewportState.interactionMode == .entity {
+                handleEntityInteraction(at: value.location)
+            } else {
+                cameraController.orbit(by: value.translation)
+            }
         }
 )
 
@@ -98,44 +106,110 @@ enum ViewportInteractionMode {
         }
 )
 
-// Long Press for Context
+// Long Press for Entity Context Menu
 .gesture(
     LongPressGesture(minimumDuration: 0.5)
         .onEnded { _ in
-            showContextMenu()
+            if let entity = hitTestEntity(at: location) {
+                showEntityContextMenu(for: entity)
+            }
         }
 )
 ```
 
-### tvOS Input Mapping
+### tvOS Input Mapping (Entity Support)
 ```swift
 // Siri Remote Swipes
 .onMoveCommand { direction in
-    switch direction {
-    case .left, .right:
-        cameraController.orbit(horizontal: direction == .left ? -1 : 1)
-    case .up, .down:
-        cameraController.orbit(vertical: direction == .up ? 1 : -1)
+    if viewportState.interactionMode == .environment {
+        switch direction {
+        case .left, .right:
+            cameraController.orbit(horizontal: direction == .left ? -1 : 1)
+        case .up, .down:
+            cameraController.orbit(vertical: direction == .up ? 1 : -1)
+        }
+    } else {
+        // Navigate between entities
+        navigateEntities(direction: direction)
     }
 }
 
 // Play/Pause Button
 .onPlayPauseCommand {
-    viewportState.toggleInteractionMode()
+    viewportState.interactionMode = 
+        viewportState.interactionMode == .environment ? .entity : .environment
 }
 
-// Menu Button
-.onExitCommand {
-    showMainMenu()
+// Select Button (Entity Mode)
+.onSelectCommand {
+    if viewportState.interactionMode == .entity {
+        if let focusedEntity = focusedEntity {
+            selectionManager.select(focusedEntity)
+        }
+    }
 }
 ```
 
-## Gizmo Hit Detection
+## Entity Hit Detection
 
-### Hit Test Implementation
+### Hit Test Implementation (RealityKit.Entity)
+```swift
+func hitTestEntity(at location: CGPoint) -> (any SceneEntity)? {
+    // Get ray from camera
+    guard let ray = arView.ray(through: location) else { return nil }
+    
+    // Hit test against RealityKit entities
+    let hits = scene.raycast(
+        origin: ray.origin,
+        direction: ray.direction,
+        length: 100,
+        query: .nearest,
+        mask: .default
+    )
+    
+    // Map RealityKit.Entity to custom Entity
+    if let hit = hits.first {
+        let rkEntity = hit.entity  // This is RealityKit.Entity
+        
+        // Find corresponding custom Entity in SceneManager
+        return sceneManager.findEntity(byRealityEntity: rkEntity)
+    }
+    
+    return nil
+}
+```
+
+### Entity Selection States
+```swift
+enum EntityInteractionState {
+    case idle
+    case hovering(entity: any SceneEntity)
+    case selected(entity: any SceneEntity)
+    case transforming(entity: any SceneEntity, gizmoAxis: GizmoAxis)
+    
+    var cursorStyle: NSCursor? {
+        switch self {
+        case .idle:
+            return .arrow
+        case .hovering:
+            return .pointingHand
+        case .selected:
+            return .openHand
+        case .transforming:
+            return .closedHand
+        }
+    }
+}
+```
+
+## Gizmo Interaction with Entities
+
+### Gizmo Hit Detection (Entity-Based)
 ```swift
 func hitTestGizmo(at location: CGPoint) -> GizmoAxis? {
-    // Convert screen to world coordinates
+    // Gizmo is a RealityKit.Entity in ViewportState
+    guard let gizmoEntity = viewportState.currentGizmo else { return nil }
+    
     let ray = viewport.ray(from: location)
     
     // Test against gizmo components
@@ -146,42 +220,23 @@ func hitTestGizmo(at location: CGPoint) -> GizmoAxis? {
         query: .nearest,
         mask: .gizmo
     ).first {
-        return gizmoAxis(for: hit.entity)
+        // Check if hit entity is part of gizmo
+        if isGizmoComponent(hit.entity, of: gizmoEntity) {
+            return gizmoAxis(for: hit.entity)
+        }
     }
     
     return nil
 }
 ```
 
-### Gizmo Interaction States
+### Axis-Constrained Entity Movement
 ```swift
-enum GizmoInteractionState {
-    case idle
-    case hovering(axis: GizmoAxis)
-    case dragging(axis: GizmoAxis, startPoint: SIMD3<Float>)
-    
-    var cursorStyle: NSCursor? {
-        switch self {
-        case .idle:
-            return nil
-        case .hovering(let axis):
-            return axis.cursor
-        case .dragging:
-            return .closedHand
-        }
-    }
-}
-```
-
-### Axis-Constrained Movement
-```swift
-func dragGizmo(axis: GizmoAxis, by delta: CGSize) {
-    guard let selected = viewportState.selectedEntity else { return }
-    
+func dragEntity(entity: any SceneEntity, axis: GizmoAxis, by delta: CGSize) {
     // Convert screen delta to world space
     let worldDelta = screenToWorld(delta)
     
-    // Apply constraint
+    // Apply constraint to entity position
     let movement: SIMD3<Float>
     switch axis {
     case .x:
@@ -192,15 +247,26 @@ func dragGizmo(axis: GizmoAxis, by delta: CGSize) {
         movement = SIMD3(0, 0, worldDelta.z)
     case .xy:
         movement = SIMD3(worldDelta.x, worldDelta.y, 0)
-    // ... other combinations
+    case .xz:
+        movement = SIMD3(worldDelta.x, 0, worldDelta.z)
+    case .yz:
+        movement = SIMD3(0, worldDelta.y, worldDelta.z)
+    case .xyz:
+        movement = worldDelta
     }
     
-    selected.position += movement
-    viewportState.triggerUpdate()
+    // Update entity position
+    entity.position += movement
+    
+    // Sync gizmo position
+    viewportState.currentGizmo?.position = entity.position
+    
+    // Trigger viewport update
+    viewportState.needsUpdate.toggle()
 }
 ```
 
-## Camera Control Mathematics
+## Camera Control Mathematics (Updated)
 
 ### Orbit Calculation
 ```swift
@@ -211,15 +277,21 @@ func orbitCamera(by delta: CGSize) {
     let deltaY = Float(delta.height) * sensitivity
     
     // Update spherical coordinates
-    viewportState.cameraRotation.x += deltaX
-    viewportState.cameraRotation.y += deltaY
+    viewportState.cameraAzimuth += deltaX
+    viewportState.cameraElevation += deltaY
     
     // Clamp elevation to prevent flipping
-    viewportState.cameraRotation.y = viewportState.cameraRotation.y
+    viewportState.cameraElevation = viewportState.cameraElevation
         .clamped(to: -.pi/2 + 0.1...pi/2 - 0.1)
     
-    // Update camera position
-    updateCameraTransform()
+    // Update camera position using ViewportState's method
+    let newPosition = viewportState.computeCameraPosition()
+    viewportState.cameraEntity.position = newPosition
+    viewportState.cameraEntity.look(
+        at: viewportState.cameraTarget,
+        from: newPosition,
+        relativeTo: nil
+    )
 }
 ```
 
@@ -227,7 +299,7 @@ func orbitCamera(by delta: CGSize) {
 ```swift
 func panCamera(by delta: CGSize) {
     // Get camera right and up vectors
-    let transform = cameraEntity.transform
+    let transform = viewportState.cameraEntity.transform
     let right = transform.matrix.columns.0.xyz
     let up = transform.matrix.columns.1.xyz
     
@@ -239,6 +311,15 @@ func panCamera(by delta: CGSize) {
     // Move target
     viewportState.cameraTarget += right * deltaX
     viewportState.cameraTarget += up * -deltaY
+    
+    // Update camera to look at new target
+    let position = viewportState.computeCameraPosition()
+    viewportState.cameraEntity.position = position
+    viewportState.cameraEntity.look(
+        at: viewportState.cameraTarget,
+        from: position,
+        relativeTo: nil
+    )
 }
 ```
 
@@ -254,12 +335,16 @@ func zoomCamera(by delta: Float) {
     // Clamp to reasonable range
     viewportState.cameraDistance = viewportState.cameraDistance
         .clamped(to: 0.5...50.0)
+    
+    // Update camera position
+    let position = viewportState.computeCameraPosition()
+    viewportState.cameraEntity.position = position
 }
 ```
 
-## Touch Target Optimization
+## Touch Target Optimization (Entity Selection)
 
-### iOS Touch Areas
+### iOS Touch Areas for Entities
 ```swift
 struct TouchTargets {
     static let minimumTapTarget: CGFloat = 44  // Apple HIG
@@ -267,7 +352,7 @@ struct TouchTargets {
     static let entitySelectPadding: CGFloat = 10
 }
 
-func expandedHitTest(at point: CGPoint) -> Entity? {
+func expandedEntityHitTest(at point: CGPoint) -> (any SceneEntity)? {
     // Test expanded area for better touch accuracy
     let testPoints = [
         point,
@@ -278,8 +363,8 @@ func expandedHitTest(at point: CGPoint) -> Entity? {
     ]
     
     for testPoint in testPoints {
-        if let hit = viewport.hitTest(at: testPoint) {
-            return hit
+        if let entity = hitTestEntity(at: testPoint) {
+            return entity
         }
     }
     
@@ -289,96 +374,101 @@ func expandedHitTest(at point: CGPoint) -> Entity? {
 
 ## Gesture Conflict Resolution
 
-### Simultaneous Gesture Handling
+### Entity vs Camera Priority
 ```swift
-// Allow pan and zoom together
-panGesture.simultaneously(with: pinchGesture)
-
-// Exclusive mode switching
-tapGesture.exclusively(before: dragGesture)
-```
-
-### Priority System
-```swift
-enum GesturePriority: Int {
-    case modeToggle = 1000      // Highest
-    case gizmoInteraction = 900
-    case entitySelection = 800
-    case cameraControl = 700    // Lowest
+// Entity selection takes priority in entity mode
+struct GesturePriority {
+    static let entitySelection = 1000
+    static let gizmoInteraction = 900
+    static let cameraOrbit = 800
+    static let cameraPan = 700
+    static let cameraZoom = 600
 }
+
+// Apply priorities
+entityTapGesture.priority(GesturePriority.entitySelection)
+orbitGesture.priority(GesturePriority.cameraOrbit)
 ```
 
-## Haptic Feedback (iOS)
+## Haptic Feedback for Entity Operations (iOS)
 
-### Feedback Patterns
+### Entity Feedback Patterns
 ```swift
-enum HapticPattern {
-    case selection
+enum EntityHapticPattern {
+    case entitySelected
+    case entityCreated
+    case entityDeleted
+    case transformStart
+    case transformSnap
     case modeSwitch
-    case gizmoSnap
-    case error
     
     func trigger() {
         #if os(iOS)
         switch self {
-        case .selection:
+        case .entitySelected:
             UIImpactFeedbackGenerator(style: .light).impactOccurred()
-        case .modeSwitch:
+        case .entityCreated:
             UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-        case .gizmoSnap:
-            UINotificationFeedbackGenerator().notificationOccurred(.success)
-        case .error:
-            UINotificationFeedbackGenerator().notificationOccurred(.error)
+        case .entityDeleted:
+            UINotificationFeedbackGenerator().notificationOccurred(.warning)
+        case .transformStart:
+            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+        case .transformSnap:
+            UIImpactFeedbackGenerator(style: .rigid).impactOccurred()
+        case .modeSwitch:
+            UISelectionFeedbackGenerator().selectionChanged()
         }
         #endif
     }
 }
 ```
 
-## Keyboard Shortcuts (macOS)
+## Keyboard Shortcuts for Entity Operations (macOS)
 
-### Shortcut Definitions
+### Entity-Specific Shortcuts
 ```swift
 extension View {
-    func viewportKeyboardShortcuts() -> some View {
+    func entityKeyboardShortcuts() -> some View {
         self
+            // Transform tools
             .keyboardShortcut("w", modifiers: [])  // Move tool
             .keyboardShortcut("e", modifiers: [])  // Rotate tool
             .keyboardShortcut("r", modifiers: [])  // Scale tool
-            .keyboardShortcut(" ", modifiers: [])  // Toggle mode
-            .keyboardShortcut("f", modifiers: [])  // Focus selected
-            .keyboardShortcut("g", modifiers: [])  // Toggle grid
-            .keyboardShortcut("delete", modifiers: [])  // Delete
+            .keyboardShortcut("q", modifiers: [])  // Select tool
+            
+            // Entity operations
+            .keyboardShortcut("d", modifiers: .command)  // Duplicate entity
+            .keyboardShortcut(.delete, modifiers: [])    // Delete entity
+            .keyboardShortcut("f", modifiers: [])        // Focus entity
+            .keyboardShortcut("h", modifiers: [])        // Hide entity
+            
+            // Mode switching
+            .keyboardShortcut(.space, modifiers: [])     // Toggle mode
+            
+            // Scene operations
+            .keyboardShortcut("g", modifiers: [])        // Toggle grid
+            .keyboardShortcut("l", modifiers: .command)  // Toggle lights
     }
 }
 ```
 
 ## Performance Optimizations
 
-### Gesture Debouncing
+### Entity Hit Test Caching
 ```swift
-class GestureDebouncer {
-    private var workItem: DispatchWorkItem?
-    
-    func debounce(delay: TimeInterval = 0.1, action: @escaping () -> Void) {
-        workItem?.cancel()
-        workItem = DispatchWorkItem(block: action)
-        DispatchQueue.main.asyncAfter(
-            deadline: .now() + delay,
-            execute: workItem!
-        )
-    }
-}
-```
-
-### Hit Test Caching
-```swift
-struct HitTestCache {
-    private var cache: [CGPoint: Entity?] = [:]
+struct EntityHitTestCache {
+    private var cache: [CGPoint: (any SceneEntity)?] = [:]
+    private var lastUpdate: Date = Date()
     private let maxAge: TimeInterval = 0.1
     
     mutating func hitTest(at point: CGPoint, 
-                         using test: () -> Entity?) -> Entity? {
+                         using test: () -> (any SceneEntity)?) -> (any SceneEntity)? {
+        // Check cache validity
+        if Date().timeIntervalSince(lastUpdate) > maxAge {
+            cache.removeAll()
+            lastUpdate = Date()
+        }
+        
         // Check cache first
         if let cached = cache[point] {
             return cached
@@ -388,22 +478,95 @@ struct HitTestCache {
         let result = test()
         cache[point] = result
         
-        // Clear old entries periodically
-        if cache.count > 100 {
-            cache.removeAll()
-        }
-        
         return result
     }
 }
 ```
 
+### Gesture Batching for Entities
+```swift
+class EntityTransformBatcher {
+    private var pendingTransforms: [UUID: SIMD3<Float>] = [:]
+    private var timer: Timer?
+    
+    func addTransform(for entity: any SceneEntity, delta: SIMD3<Float>) {
+        pendingTransforms[entity.id, default: .zero] += delta
+        
+        // Batch updates
+        timer?.invalidate()
+        timer = Timer.scheduledTimer(withTimeInterval: 0.016, repeats: false) { _ in
+            self.applyTransforms()
+        }
+    }
+    
+    private func applyTransforms() {
+        for (entityId, totalDelta) in pendingTransforms {
+            if let entity = sceneManager.entity(withId: entityId) {
+                entity.position += totalDelta
+            }
+        }
+        pendingTransforms.removeAll()
+        viewportState.needsUpdate.toggle()
+    }
+}
+```
+
+## Entity-Specific Gesture Behaviors
+
+### Camera Entity Gestures
+```swift
+// Double-tap to look through camera
+.onTapGesture(count: 2) {
+    if let camera = entity as? CameraEntity {
+        viewportState.setActiveCamera(camera)
+    }
+}
+```
+
+### Light Entity Gestures
+```swift
+// Pinch to adjust light intensity
+.gesture(
+    MagnificationGesture()
+        .onChanged { scale in
+            if let light = selectedEntity as? LightEntity {
+                light.intensity = baseIntensity * Float(scale)
+            }
+        }
+)
+```
+
+### Model Entity Gestures
+```swift
+// Rotation gesture for models
+.rotationEffect(rotationAngle)
+.gesture(
+    RotationGesture()
+        .onChanged { angle in
+            if let model = selectedEntity as? ModelEntity {
+                model.rotation = simd_quatf(angle: Float(angle.radians), 
+                                           axis: [0, 1, 0])
+            }
+        }
+)
+```
+
 ## Future Enhancements
 
-- [ ] Gesture customization preferences
-- [ ] Advanced multi-touch gestures
-- [ ] Gesture recording/playback
-- [ ] Accessibility gesture alternatives
-- [ ] Force touch support (where available)
-- [ ] Apple Pencil integration
-- [ ] Game controller support
+- [ ] Custom gesture sets per entity type
+- [ ] Gesture recording for entity animations
+- [ ] Multi-entity selection gestures
+- [ ] Advanced snapping during transform
+- [ ] Apple Pencil precision mode
+- [ ] Gesture-based entity creation
+- [ ] VoiceOver gesture alternatives
+- [ ] Game controller entity navigation
+
+## Summary
+
+The gesture system in v2.0:
+- ✅ Fully integrated with Entity/ECS system
+- ✅ Maps RealityKit.Entity hits to custom Entities
+- ✅ Mode-based routing through ViewportState
+- ✅ Platform-optimized while maintaining consistency
+- ✅ Performance-optimized with caching and batching
