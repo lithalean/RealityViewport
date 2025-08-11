@@ -1,313 +1,452 @@
-# RealityViewport Visual Design Context
+# RealityViewport Visual Design System
 
-**Purpose**: Complete visual design system and UI specifications  
-**Version**: 2.0  
-**Design Language**: Apple HIG + Custom 3D Elements  
-**Last Updated**: July 2025
+**Purpose**: Complete visual design system, UI specifications, and adaptive layouts  
+**Version**: 3.0  
+**Design Language**: Apple HIG + Metal Rendering + Adaptive UI  
+**Last Updated**: August 2025
 
-## Visual Hierarchy
+## Visual Architecture
 ```
-Z-LAYERS (back→front):
-├─[0] RealityKit Scene (3D viewport)
-├─[1] Grid Helper (reference grid)
-├─[2] Scene Entities (models, cameras, lights)
-├─[3] Billboard Icons (always-facing)
-├─[4] Transform Gizmos (selection tools)
-├─[5] Viewport Overlay (axis helper)
-└─[6] UI Layer (toolbar, inspector, dialogs)
+RENDERING LAYERS (back→front):
+├─[0] Metal Sky (Dynamic gradient background)
+├─[1] Metal Grid (GPU-accelerated reference grid)
+├─[2] RealityKit Scene (3D models & entities)
+├─[3] Billboard Icons (Camera-facing UI elements)
+├─[4] Transform Gizmos (Manipulation tools)
+├─[5] Viewport Overlays (Axis helper, stats)
+└─[6] SwiftUI Layer (Adaptive UI, inspector, toolbar)
 ```
 
-## Quick Reference Tables
+## Adaptive Layout System (WWDC25 Standard)
 
-### Color Palette
-| Element | Light Mode | Dark Mode | Hex/Usage |
-|---------|------------|-----------|-----------|
-| **Background** | systemBackground | systemBackground | Main viewport |
-| **Grid** | gray.opacity(0.3) | gray.opacity(0.3) | Reference grid |
-| **Selection** | accentColor | accentColor | Selected objects |
-| **Gizmo X** | .red | .red | X-axis transform |
-| **Gizmo Y** | .green | .green | Y-axis transform |
-| **Gizmo Z** | .blue | .blue | Z-axis transform |
-| **Gizmo XY** | .yellow | .yellow | XY plane |
-| **Gizmo XZ** | .cyan | .cyan | XZ plane |
-| **Gizmo YZ** | .purple | .purple | YZ plane |
-| **Gizmo Center** | .white | .gray | Multi-axis |
-| **Button Active** | accentColor.opacity(0.2) | accentColor.opacity(0.2) | Active state |
-| **Icons** | .label | .label | Billboard icons |
-| **Error** | .red | .red | Error states |
-| **Success** | .green | .green | Success feedback |
+### Layout Strategy
+```swift
+// Single ContentView adapts to all contexts
+NavigationSplitView (Regular: iPad/Mac)
+├─ Sidebar: Inspector (collapsible)
+└─ Detail: Viewport + Toolbar
 
-### Spacing System
-| Token | Value | Usage |
-|-------|-------|-------|
-| **small** | 8pt | Internal padding |
-| **medium** | 16pt | Component spacing |
-| **large** | 24pt | Section gaps |
-| **toolbar** | 12pt | Toolbar items |
+NavigationStack (Compact: iPhone)
+├─ Main: Viewport
+├─ Toolbar: Bottom floating
+└─ Inspector: Sheet/Overlay
+```
 
-### Typography Scale
-| Style | Size | Weight | Usage |
-|-------|------|--------|-------|
-| **Title** | .title2 | .medium | Panel headers |
-| **Body** | .body | .regular | General text |
-| **Caption** | .caption | .regular | Help text |
-| **Tool** | .footnote | .medium | Toolbar labels |
+### Size Class Breakpoints
+| Class | Width | Platform | Layout |
+|-------|-------|----------|--------|
+| **Compact** | < 600pt | iPhone, iPad Split | Stack layout, bottom toolbar |
+| **Regular** | ≥ 600pt | iPad, Mac | Split view, inline inspector |
+| **tvOS** | Full | Apple TV | Focus-based, simplified |
+
+### Adaptive Components
+
+#### Toolbar Adaptation
+```yaml
+regular_layout:
+  position: top_leading_overlay
+  style: bordered_prominent
+  spacing: 12pt
+  shows_labels: true
+
+compact_layout:
+  position: bottom_floating
+  style: material_background
+  spacing: 8pt
+  shows_labels: false
+  padding: safe_area + 8pt
+```
+
+#### Inspector Adaptation
+```yaml
+regular_layout:
+  style: NavigationSplitView.sidebar
+  width: 320pt
+  resizable: true (280-400pt)
+  position: leading_side
+
+compact_layout:
+  style: .inspector() modifier
+  presentation: slide_over
+  width: 80% of screen
+  dismissable: true
+```
+
+## Metal Rendering Visual Specs
+
+### Sky Gradient System (Day/Night Cycle)
+```yaml
+dawn:
+  top: rgb(102, 128, 179)    # Soft blue-gray
+  bottom: rgb(230, 153, 102)  # Warm orange
+  duration: 0.25 cycle
+
+day:
+  top: rgb(77, 153, 230)      # Sky blue
+  bottom: rgb(179, 217, 255)  # Light blue
+  duration: 0.25 cycle
+
+dusk:
+  top: rgb(77, 51, 128)       # Purple
+  bottom: rgb(204, 102, 77)   # Orange-red
+  duration: 0.25 cycle
+
+night:
+  top: rgb(13, 13, 38)        # Dark blue
+  bottom: rgb(26, 26, 64)     # Midnight blue
+  duration: 0.25 cycle
+
+transition: smooth_interpolation
+cycle_time: 120_seconds_default
+```
+
+### Grid Rendering
+```yaml
+style: metal_shader_based
+lines:
+  major:
+    color: rgba(0.3, 0.3, 0.3, 0.5)
+    width: 1.0pt
+    spacing: 1.0_unit
+  minor:
+    color: rgba(0.2, 0.2, 0.2, 0.3)
+    width: 0.5pt
+    spacing: 0.1_unit
+axes:
+  x: red (1.0, 0.0, 0.0, 1.0)
+  y: green (0.0, 1.0, 0.0, 1.0)
+  z: blue (0.0, 0.0, 1.0, 1.0)
+  width: 2.0pt
+fade:
+  start_distance: 5.0_units
+  end_distance: 20.0_units
+  function: smooth_step
+```
+
+## Updated Color System
+
+### Core Palette
+| Element | Light Mode | Dark Mode | Metal/Hex | Usage |
+|---------|------------|-----------|-----------|--------|
+| **Sky** | Dynamic | Dynamic | See cycle above | Background gradient |
+| **Grid** | 0.3 alpha gray | 0.3 alpha gray | #4C4C4C80 | Reference grid |
+| **Grid Fade** | Distance-based | Distance-based | Shader calc | Depth cue |
+| **Selection** | accentColor | accentColor | System | Selected objects |
+| **Gizmo X** | .red | .red | #FF0000 | X-axis |
+| **Gizmo Y** | .green | .green | #00FF00 | Y-axis |
+| **Gizmo Z** | .blue | .blue | #0000FF | Z-axis |
+| **Material** | .regularMaterial | .regularMaterial | System | UI panels |
+
+### Entity Type Colors
+| Type | Icon Color | Selection Tint |
+|------|------------|----------------|
+| Camera | .blue | .blue.opacity(0.2) |
+| Light | .yellow | .yellow.opacity(0.2) |
+| Model | .purple | .purple.opacity(0.2) |
+| Empty | .gray | .gray.opacity(0.2) |
 
 ## Component Specifications
 
-### Viewport Toolbar
+### Unified Viewport Toolbar
 ```yaml
-height: 
-  macOS: 38pt
-  iOS: 44pt
-  tvOS: 60pt
-background: .regularMaterial
-layout: horizontal
-padding: 12pt
-items:
-  - mode_toggle:
-      type: segmented_control
-      options: ["Environment", "Entity"]
-      style: bordered
-  - divider:
-      width: 1pt
-      color: .separator
-  - tool_buttons:
-      spacing: 8pt
-      style: bordered_prominent (when active)
-  - spacer:
-      type: flexible
-  - add_menu:
-      style: menu_button
-      icon: "plus.circle.fill"
-responsive_behavior:
-  compact: hide_labels
-  regular: show_labels
+adaptive_behavior:
+  compact:
+    container: floating_capsule
+    position: bottom - 8pt
+    background: .regularMaterial
+    corner_radius: 12pt
+  regular:
+    container: inline_overlay
+    position: top_leading + 16pt
+    background: .regularMaterial
+    corner_radius: 8pt
+
+controls:
+  mode_selector:
+    type: segmented_control
+    options: ["Environment", "Entity"]
+    width: adaptive
+  
+  gizmo_tools:
+    type: button_group
+    items: [move, rotate, scale]
+    style: bordered_when_active
+    
+  viewport_actions:
+    type: menu
+    icon: plus.circle.fill
+    items: [add_camera, add_light, add_primitive]
 ```
 
-### Transform Gizmo Specifications
+### Transform Gizmo (Metal + RealityKit Hybrid)
 ```yaml
-style: "3D Axis-Aligned"
-components:
-  axes:
-    length: 2.0 units
-    thickness: 0.05 units
-    tip_size: 0.15 units
-  planes:
-    size: 0.5 units
-    opacity: 0.3
-  center:
-    size: 0.2 units
-    style: sphere
-colors:
-  x_axis: red
-  y_axis: green  
-  z_axis: blue
-  xy_plane: yellow
-  xz_plane: cyan
-  yz_plane: purple
-  center: white/gray
-  hover: 20% brighter
-  active: 40% brighter
-interaction_states:
-  idle:
-    opacity: 0.8
-    scale: 1.0
+rendering: RealityKit entities
+scaling: screen_space_constant
+size:
+  base: 0.1 * camera_distance
+  min: 60pt_screen_space
+  max: 200pt_screen_space
+  
+interaction:
   hover:
-    opacity: 1.0
-    scale: 1.1
+    scale: 1.1x
+    brightness: 1.2x
     cursor: platform_specific
-  dragging:
-    opacity: 1.0
-    scale: 1.0
-    show_guides: true
-screen_space_scaling: true
-minimum_size: 60pt
-maximum_size: 200pt
+  
+  drag:
+    constraint_display: true
+    axis_highlight: true
+    value_overlay: true
+    haptic: light_impact (iOS)
 ```
 
-### Billboard Icons
+### Inspector Panel (Adaptive)
 ```yaml
-size: 24x24pt
-background: "Semi-transparent circle"
-style: "SF Symbols"
-icons:
-  camera: "camera.fill"
-  light: "light.max"
-  model: "cube.fill"
-  empty: "circle.dotted"
+structure:
+  header:
+    title: "Inspector"
+    stats: entity_count
+    close_button: trailing
+    
+  outliner:
+    style: hierarchical_list
+    icons: sf_symbols
+    selection: follows_scene
+    
+  properties:
+    style: grouped_form
+    resize_handle: top_edge
+    min_height: 100pt
+    max_height: 400pt
+    
+responsive:
+  regular:
+    width: 320pt
+    position: NavigationSplitView.sidebar
+    
+  compact:
+    width: 80%_screen
+    position: sheet_overlay
+    drag_to_dismiss: true
 ```
 
-### Inspector Panel
-```yaml
-width: 
-  min: 250pt
-  ideal: 300pt
-  max: 400pt
-sections:
-  - outliner: "Scene hierarchy"
-  - properties: "Selected object properties"
-style: "Grouped list with disclosure"
-```
-
-## Platform-Specific Adaptations
+## Platform-Specific Refinements
 
 ### macOS
-- Smaller toolbar height (38pt)
-- Hover states on all interactive elements
-- Keyboard shortcuts visible
-- Right-click context menus
+```yaml
+window:
+  min_size: 800x600
+  style: standard_window
+  
+interactions:
+  hover_effects: enabled
+  context_menus: right_click
+  keyboard_shortcuts: visible
+  cursor_changes: true
+  
+toolbar:
+  style: unified_compact
+  customizable: false
+```
 
-### iOS
-- Standard toolbar height (44pt)
-- Touch-friendly tap targets (44x44pt min)
-- Gesture hints on first launch
-- Haptic feedback on selection
+### iOS/iPadOS
+```yaml
+safe_areas: respected
+gestures:
+  pinch_zoom: viewport_camera
+  two_finger_drag: pan_camera
+  long_press: context_menu
+  
+haptics:
+  selection: light_impact
+  mode_change: selection_changed
+  error: notification_error
+  
+presentation:
+  inspector: slide_over
+  sheets: medium_large_detents
+```
 
 ### tvOS
-- Focus-based navigation
-- Larger UI elements
-- Simplified toolbar
-- Remote-friendly controls
-
-## Visual Effects
-
-### Materials
 ```yaml
-viewport_background:
-  type: "Solid color"
-  value: "System background"
+focus_engine: enabled
+controls:
+  remote_swipe: camera_orbit
+  play_pause: toggle_selection
+  menu: back_navigation
   
-toolbar_material:
-  type: "UIBlurEffect"
-  style: ".regularMaterial"
-  
-inspector_background:
-  type: "Grouped style"
-  style: ".grouped"
+simplifications:
+  toolbar: essential_only
+  inspector: read_only
+  gizmos: larger_targets
 ```
 
-### Animations
+## Visual Effects & Materials
+
+### SwiftUI Materials
 ```yaml
-selection_highlight:
+panels:
+  primary: .regularMaterial
+  secondary: .thinMaterial
+  overlay: .ultraThinMaterial
+  
+backgrounds:
+  viewport: Color.clear  # Shows Metal layers
+  inspector: .grouped
+  toolbar: .regularMaterial
+```
+
+### Metal Shader Effects
+```yaml
+sky_gradient:
+  type: vertex_fragment_shader
+  blend: smooth_interpolation
+  update: per_frame
+  
+grid_fade:
+  type: fragment_shader
+  function: smoothstep(5.0, 20.0, distance)
+  alpha: distance_based
+  
+transparency:
+  order: back_to_front
+  blend: source_over
+```
+
+## Animation Specifications
+
+### Standard Transitions
+```yaml
+inspector_toggle:
+  duration: 0.3s
+  curve: spring(response: 0.3)
+  
+selection_change:
   duration: 0.2s
-  curve: "easeInOut"
+  curve: easeInOut
   
 gizmo_hover:
-  scale: 1.2x
   duration: 0.15s
+  scale: 1.1x
   
-panel_toggle:
-  type: "slide"
-  duration: 0.3s
+mode_switch:
+  duration: 0.25s
+  type: opacity_transition
 ```
 
-## Icon System
-
-### Entity Icons (SF Symbols)
-| Entity Type | Icon | Size | Color |
-|-------------|------|------|-------|
-| Camera | camera.fill | 20pt | .label |
-| Light | light.max | 20pt | .yellow |
-| Model | cube.fill | 20pt | .label |
-| Group | folder.fill | 20pt | .label |
-
-### Tool Icons
-| Tool | Icon | Size | State |
-|------|------|------|-------|
-| Select | cursorarrow | 16pt | Toggle |
-| Move | move.3d | 16pt | Toggle |
-| Rotate | rotate.3d | 16pt | Toggle |
-| Scale | arrow.up.left.and.arrow.down.right | 16pt | Toggle |
-
-## Design Tokens
-
-### Shadows
+### Day/Night Cycle
 ```yaml
-gizmo_shadow:
-  color: black.opacity(0.3)
-  radius: 4
-  offset: (0, 2)
-  
-panel_shadow:
-  color: black.opacity(0.1)
-  radius: 8
-  offset: (0, 4)
+phase_transition:
+  duration: continuous
+  interpolation: linear
+  update_rate: 60fps
+  total_cycle: 120s
 ```
 
-### Corner Radius
-```yaml
-panels: 8pt
-buttons: 6pt
-toolbar: 0pt
-icons: circle
-```
+## Typography & Icons
+
+### Text Hierarchy
+| Level | SwiftUI Style | Size | Weight | Usage |
+|-------|--------------|------|--------|-------|
+| Title | .headline | System | .medium | Panel headers |
+| Body | .body | System | .regular | General text |
+| Label | .caption | System | .regular | Property labels |
+| Value | .body | System | .monospaced | Numbers |
+
+### SF Symbols Usage
+| Category | Symbol | Size | Rendering |
+|----------|--------|------|-----------|
+| Camera | camera.fill | 20pt | hierarchical |
+| Light | light.max | 20pt | multicolor |
+| Model | cube.fill | 20pt | monochrome |
+| Transform | move.3d | 16pt | monochrome |
 
 ## Accessibility
 
-### High Contrast Mode
-- Increased grid opacity
-- Thicker selection outlines
-- Higher contrast gizmo colors
-
-### Reduced Motion
-- Instant transitions
-- No hover animations
-- Static billboard rotation
-
-## File Dialog Visual Flows
-
-### New Project Dialog
+### Dynamic Type
 ```yaml
-type: modal_sheet
-width: 400pt
-content:
-  - title: "New Project"
-  - text_field:
-      label: "Project Name"
-      placeholder: "My Project"
-  - location_picker:
-      label: "Save Location"
-      default: "~/Documents/RealityViewport Projects"
-  - buttons:
-      cancel: secondary_style
-      create: primary_style
-validation:
-  - non_empty_name
-  - valid_characters
-  - unique_name_in_directory
+supported: true
+minimum_size: .small
+maximum_size: .xxxLarge
+layout_adjustments: automatic
 ```
 
-### Import Dialog Flow
+### High Contrast
 ```yaml
-stages:
-  file_selection:
-    type: system_file_browser
-    allowed_types: [.usdz, .reality]
-    multiple_selection: true
-  import_progress:
-    type: progress_sheet
-    shows: file_name, progress_bar, cancel_button
-  completion:
-    type: auto_dismiss
-    duration: 1.5s
-    shows: success_checkmark
+grid_opacity: increased to 0.6
+selection_outline: 2pt width
+gizmo_colors: high_contrast_variants
 ```
 
-### Export Format Selection
+### Reduce Motion
 ```yaml
-type: popover
-trigger: export_button
-content:
-  - section_header: "Export Format"
-  - radio_group:
-      options:
-        - USDZ (3D Scene)
-        - Reality (AR Quick Look)
-        - JSON (Scene Data)
-  - section_header: "Options"
-  - checkboxes:
-      - Include Textures
-      - Optimize Geometry
-  - export_button: primary_style
+transitions: cross_fade_only
+animations: disabled
+day_night_cycle: manual_control
 ```
+
+## Performance Visual Targets
+
+### Frame Rate
+```yaml
+target: 60fps
+minimum: 30fps
+measurement: Metal HUD
+
+budget:
+  sky: 0.5ms
+  grid: 0.3ms
+  entities: 8-12ms
+  ui: 2ms
+  total: <16.67ms
+```
+
+### Visual Quality Settings
+```yaml
+high_quality:
+  grid_divisions: 20
+  shadow_resolution: 2048
+  antialiasing: 4x
+  
+balanced:
+  grid_divisions: 10
+  shadow_resolution: 1024
+  antialiasing: 2x
+  
+performance:
+  grid_divisions: 5
+  shadow_resolution: 512
+  antialiasing: none
+```
+
+## Visual Debug Overlays
+
+### Debug Mode
+```yaml
+fps_counter:
+  position: top_right
+  style: monospaced
+  
+entity_bounds:
+  color: yellow
+  style: wireframe
+  
+selection_info:
+  shows: name, type, transform
+  position: above_gizmo
+  
+performance_hud:
+  shows: draw_calls, triangles, frame_time
+  position: bottom_right
+```
+
+## Summary
+
+The visual system combines:
+- ✅ **Metal rendering** for GPU-accelerated backgrounds and grids
+- ✅ **Adaptive layouts** following WWDC25 best practices
+- ✅ **Platform optimizations** for macOS, iOS, and tvOS
+- ✅ **Dynamic theming** with day/night cycle
+- ✅ **Consistent design language** across all platforms
+
+This unified visual system ensures professional appearance while maintaining 60fps performance across all supported devices.
