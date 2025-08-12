@@ -1,32 +1,66 @@
 # Entity/ECS System Architecture
 
 **Module**: ENTITY_SYSTEM.md  
-**Version**: 1.0  
-**Created**: August 2025  
-**Status**: 🆕 NEW - Primary Reference  
-**Architecture**: Unity DOTS-inspired ECS Hybrid
+**Version**: 2.0  
+**Architecture**: Simplified Entity Wrapper over RealityKit ECS  
+**Philosophy**: Start simple, grow with needs  
+**Status**: Foundation Complete - Growing System  
+**Last Updated**: August 2025
 
 ## Overview
 
-RealityViewport implements a sophisticated Entity Component System (ECS) hybrid architecture that wraps RealityKit's native ECS with a Unity-like API for ease of use. This system completely replaces the previous Node-based architecture.
+RealityViewport implements a **simplified Entity wrapper system** that provides a Unity-like API over RealityKit's powerful ECS. This is not an attempt to replicate Apple's entire Entity system on day one. Instead, it's a pragmatic wrapper that starts with the basics and grows as your game needs evolve.
 
 ## Core Philosophy
 
-```swift
-// OLD (Node System) - REMOVED
-class SceneNode: ObservableObject { }
+**"Ship the alpha with what works, add complexity when you need it."**
 
-// NEW (Entity System) - CURRENT
-class Entity: ObservableObject, Identifiable, Hashable {
-    public let realityEntity: RealityKit.Entity
+```swift
+// Your simplified Entity wrapper (today)
+class Entity {
+    var position: SIMD3<Float>  // What you need now
+    var realityEntity: RealityKit.Entity  // Escape hatch to full power
+}
+
+// Not this (trying to build everything day 1)
+class Entity {
+    // 500 properties and methods you don't need yet...
 }
 ```
 
-The Entity system provides:
-- **Unity-like ease of use** with familiar APIs
-- **RealityKit performance** through native ECS
-- **Type safety** with Swift protocols
-- **Observable state** for SwiftUI integration
+The Entity wrapper provides:
+- **Simplified API** for common operations
+- **Direct access** to RealityKit.Entity when needed
+- **Room to grow** as requirements emerge
+- **Observable properties** for SwiftUI integration
+
+## Evolution Path
+
+### Current State (v2.0) - Alpha Foundation
+```
+What's Built:
+├── Basic transforms (position, rotation, scale)
+├── Entity types (Camera, Light, Model)
+├── Observable properties for SwiftUI
+├── Scene hierarchy management
+└── Bridge to RealityKit.Entity
+
+What's NOT Built (intentionally):
+├── Complex animation systems
+├── Advanced physics wrappers
+├── Particle system abstractions
+├── Audio component wrappers
+└── Network replication
+```
+
+### Growth Strategy
+```
+Phase 1 (Current): Basic 3D editor functionality ✅
+Phase 2 (As Needed): Add animation when you need moving objects
+Phase 3 (As Needed): Add physics when you need collisions
+Phase 4 (As Needed): Add particles when you need effects
+Phase ∞ (Maybe Never): Full parity with RealityKit.Entity
+```
 
 ## Architecture Layers
 
@@ -34,488 +68,459 @@ The Entity system provides:
 ┌─────────────────────────────────────┐
 │         SwiftUI Views               │
 ├─────────────────────────────────────┤
-│      Entity Wrapper Layer           │  ← Your Entity classes
+│    Simplified Entity Wrapper        │  ← Your growing API
+│      (What you need today)          │
 ├─────────────────────────────────────┤
-│      SceneEntity Protocol           │  ← Common interface
+│      SceneEntity Protocol           │  ← Polymorphic interface
 ├─────────────────────────────────────┤
-│    RealityKit.Entity (Native)       │  ← RealityKit ECS
+│    RealityKit.Entity (Full ECS)     │  ← Always accessible
 ├─────────────────────────────────────┤
 │         Metal Rendering              │  ← GPU pipeline
 └─────────────────────────────────────┘
 ```
 
-## Entity Class Hierarchy
+## Entity Wrapper Design
 
+### The Simplified Wrapper Approach
+
+```swift
+@MainActor
+public class Entity: ObservableObject, Identifiable, Hashable {
+    // === CORE (What every entity needs) ===
+    public let id = UUID()
+    @Published public var name: String
+    
+    // === TRANSFORMS (Most common operations) ===
+    @Published public var position: SIMD3<Float> {
+        didSet { realityEntity.position = position }
+    }
+    @Published public var rotation: simd_quatf {
+        didSet { realityEntity.orientation = rotation }
+    }
+    @Published public var scale: SIMD3<Float> {
+        didSet { realityEntity.scale = scale }
+    }
+    
+    // === THE ESCAPE HATCH ===
+    // When you need something not wrapped yet, use this!
+    public let realityEntity: RealityKit.Entity
+    
+    // === HIERARCHY (Basic parent-child) ===
+    public weak var parent: Entity?
+    @Published public private(set) var children: [Entity] = []
+    
+    init(name: String = "Entity") {
+        self.name = name
+        self.realityEntity = RealityKit.Entity()
+        self.position = .zero
+        self.rotation = simd_quatf()
+        self.scale = .one
+    }
+}
 ```
-SceneEntity (Protocol)
-    ├── Entity (Base Class)
-    │   ├── CameraEntity
-    │   ├── LightEntity
-    │   └── ModelEntity
-    └── BaseSceneEntity (Alternative Base)
+
+**Design Principles:**
+1. **Wrap only what you use** - Don't wrap features you don't need
+2. **Keep the escape hatch** - Always allow direct RealityKit access
+3. **Observable by default** - SwiftUI integration from day one
+4. **Grow on demand** - Add features when you actually need them
+
+## Entity Types (Current Set)
+
+### CameraEntity - What You Need for Viewport
+```swift
+public class CameraEntity: Entity {
+    // Just the camera basics - not a full camera system
+    @Published public var fov: Float = 60.0
+    @Published public var nearPlane: Float = 0.1
+    @Published public var farPlane: Float = 1000.0
+    
+    // That's it! Add more when you need it
+}
 ```
 
-## Core Components
+### LightEntity - Basic Lighting
+```swift
+public class LightEntity: Entity {
+    public enum LightType: String, Codable, CaseIterable {
+        case directional, point, spot  // area comes later if needed
+    }
+    
+    @Published public var lightType: LightType
+    @Published public var intensity: Float = 1000.0
+    @Published public var color: SIMD3<Float> = [1, 1, 1]
+    
+    // Not wrapped yet: shadows, cookies, advanced settings
+    // Access via: entity.realityEntity.components[LightComponent.self]
+}
+```
 
-### 1. SceneEntity Protocol
+### ModelEntity - 3D Model Loading
+```swift
+public class ModelEntity: Entity {
+    @Published public var modelURL: URL?
+    @Published public var isLoading: Bool = false
+    
+    public func load(from url: URL) async {
+        // Simple async loading - that's all we need now
+    }
+    
+    // Not wrapped: LOD, animation, materials
+    // Access via: entity.realityEntity when needed
+}
+```
+
+## The SceneEntity Protocol
 
 ```swift
 public protocol SceneEntity: AnyObject, ObservableObject, Identifiable {
+    // Minimal required interface
     var id: UUID { get }
     var name: String { get set }
     var position: SIMD3<Float> { get set }
     var rotation: simd_quatf { get set }
     var scale: SIMD3<Float> { get set }
     var entityType: SceneEntityType { get }
+    
+    // Bridge to full power
     var realityEntity: RealityKit.Entity { get }
 }
 ```
 
-**Purpose**: Defines the common interface all entities must implement.
+**Why a protocol?**
+- Allows different entity implementations
+- Enables mock entities for testing
+- Provides type-safe collections
+- Keeps door open for alternative entity systems
 
-### 2. Entity Base Class
+## Using RealityKit Components Directly
 
-Located: `Entities/Entity.swift`
-
-```swift
-@MainActor
-public class Entity: ObservableObject, Identifiable, Hashable {
-    // Core Properties
-    public let id = UUID()
-    @Published public var name: String
-    @Published public var isEnabled: Bool = true
-    
-    // Transform Properties
-    @Published public var position: SIMD3<Float>
-    @Published public var rotation: simd_quatf
-    @Published public var scale: SIMD3<Float>
-    
-    // RealityKit Integration
-    public private(set) var realityEntity: RealityKit.Entity
-    
-    // Hierarchy
-    public weak var parent: Entity?
-    @Published public private(set) var children: [Entity] = []
-}
-```
-
-**Key Features**:
-- Wraps `RealityKit.Entity` with intuitive API
-- Observable properties for SwiftUI
-- Automatic sync with RealityKit transforms
-- Parent-child hierarchy management
-
-### 3. Entity Types
-
-#### CameraEntity
-```swift
-public class CameraEntity: Entity {
-    @Published public var fov: Float = 60.0
-    @Published public var nearPlane: Float = 0.1
-    @Published public var farPlane: Float = 1000.0
-    @Published public var isActive: Bool = false
-}
-```
-
-#### LightEntity
-```swift
-public class LightEntity: Entity {
-    public enum LightType: String, Codable, CaseIterable {
-        case directional, point, spot, area
-    }
-    
-    @Published public var lightType: LightType
-    @Published public var intensity: Float = 1000.0
-    @Published public var color: SIMD3<Float> = [1, 1, 1]
-    @Published public var range: Float = 10.0
-}
-```
-
-#### ModelEntity
-```swift
-public class ModelEntity: Entity {
-    @Published public var modelURL: URL?
-    @Published public var isLoading: Bool = false
-    
-    public func load(from url: URL) async
-}
-```
-
-## Component System
-
-### RealityKit Components Used
+When your simplified wrapper doesn't have what you need, go direct:
 
 ```swift
-// Rendering
-ModelComponent          // Mesh + materials
-LightComponent         // Lighting
-PerspectiveCameraComponent // Camera
+// Your wrapper provides basics
+entity.position = SIMD3<Float>(1, 2, 3)  // Easy!
 
-// Interaction
-InputTargetComponent   // Hit testing
-CollisionComponent     // Physics
+// Need something advanced? Use the escape hatch:
+entity.realityEntity.components.set(
+    CollisionComponent(shapes: [.generateBox(size: [1,1,1])])
+)
 
-// Custom Components
-EntitySelectionComponent // Selection state
-BillboardComponent      // Always face camera
-TransformGizmoComponent // Visual manipulation
-```
-
-### Adding Components
-
-```swift
-// Add component
-entity.realityEntity.components.set(ModelComponent(mesh: mesh, materials: materials))
-
-// Query component
+// Access any RealityKit component
 if let model = entity.realityEntity.components[ModelComponent.self] {
-    // Use model component
+    // Full RealityKit power when needed
 }
 
-// Remove component
-entity.realityEntity.components.remove(ModelComponent.self)
+// Future: When collision is commonly used, wrap it
+// entity.enableCollision(shape: .box)  // Coming in v3.0 maybe
 ```
 
 ## Entity Lifecycle
 
-### Creation
-
+### Creation - Keep It Simple
 ```swift
-// Create empty entity
+// Basic entity creation
 let entity = Entity(name: "MyEntity")
 
-// Create typed entity
+// Typed entities for common cases
 let camera = CameraEntity(name: "MainCamera")
 let light = LightEntity(name: "KeyLight", type: .directional)
-let model = ModelEntity(modelNamed: "Character")
+let model = ModelEntity(name: "Character")
 
-// Create with factory methods
-let box = Entity.box(size: 1.0, material: SimpleMaterial())
-let sphere = Entity.sphere(radius: 0.5)
-let group = Entity.group(name: "Props", children: [box, sphere])
+// Future: Factory methods added as needed
+// let player = Entity.player()  // When you need player prefabs
 ```
 
-### Registration with Scene
-
+### Scene Integration
 ```swift
 // Add to scene
 sceneManager.addEntity(entity)
 
-// Entity is automatically:
-// 1. Added to scene graph
-// 2. Registered with selection system
-// 3. Synchronized with RealityKit
-// 4. Made observable for UI
+// What happens (simplified):
+// 1. Add to scene array
+// 2. Add realityEntity to viewport
+// 3. Make it selectable
+// That's it! No complex systems yet
 ```
 
-### Transform Operations
-
+### Transform Operations - Unity-Like Simplicity
 ```swift
-// Direct property access (Unity-like)
+// What's wrapped (the 90% use case)
 entity.position = SIMD3<Float>(0, 1, 0)
 entity.rotation = simd_quatf(angle: .pi/4, axis: [0, 1, 0])
 entity.scale = SIMD3<Float>(2, 2, 2)
 
-// Helper methods
-entity.translate(by: SIMD3<Float>(1, 0, 0))
-entity.rotate(by: SIMD3<Float>(0, .pi/2, 0))
-entity.lookAt(target: targetPosition)
-
-// World vs Local
-let worldPos = entity.worldPosition
-let localPos = entity.position
+// What's NOT wrapped yet
+// entity.velocity = ...  // Add when you need physics
+// entity.lookAt(target)  // Add when you need it
+// entity.worldPosition   // Add when you need it
 ```
 
-### Hierarchy Management
+## Growing the System - Examples
+
+### Example: Adding Animation Support (When Needed)
 
 ```swift
-// Parent-child relationships
-parentEntity.addChild(childEntity)
-parentEntity.removeChild(childEntity)
-entity.removeFromParent()
+// FUTURE: When you need animation, extend Entity
+extension Entity {
+    func playAnimation(_ name: String) {
+        // Wrap RealityKit animation when you actually use it
+        if let animation = try? realityEntity.loadAnimation(named: name) {
+            realityEntity.playAnimation(animation)
+        }
+    }
+}
 
-// Query hierarchy
-let allDescendants = entity.getAllDescendants()
-let foundChild = entity.findChild(named: "SpecificChild")
+// Until then, use escape hatch if needed rarely
+entity.realityEntity.playAnimation(...)
+```
 
-// Iterate children
-for child in entity.children {
-    // Process child
+### Example: Adding Physics (When Needed)
+
+```swift
+// FUTURE: When you need physics
+extension Entity {
+    var isPhysicsEnabled: Bool {
+        get { realityEntity.components[PhysicsBodyComponent.self] != nil }
+        set {
+            if newValue {
+                realityEntity.components.set(PhysicsBodyComponent())
+            } else {
+                realityEntity.components.remove(PhysicsBodyComponent.self)
+            }
+        }
+    }
 }
 ```
 
-### Destruction
+## RealityKit Bridge Pattern
+
+### Clear Type Disambiguation
 
 ```swift
-// Remove from scene
-sceneManager.removeEntity(entity)
+// Your simplified wrapper
+let myEntity = Entity(name: "Simplified")
+myEntity.position = .zero  // Simple API
 
-// Cleanup happens automatically:
-// 1. Removed from parent
-// 2. Children are orphaned
-// 3. Components cleaned up
-// 4. Unregistered from systems
-```
-
-## Scene Management Integration
-
-### SceneManager Operations
-
-```swift
-class SceneManager: ObservableObject {
-    // Entity storage
-    @Published private(set) var entities: [any SceneEntity] = []
-    
-    // Typed accessors
-    var cameraEntities: [CameraEntity]
-    var lightEntities: [LightEntity]
-    var modelEntities: [ModelEntity]
-    
-    // Operations
-    func addEntity(_ entity: any SceneEntity)
-    func removeEntity(_ entity: any SceneEntity)
-    func updateEntity(_ entity: any SceneEntity)
-    
-    // RealityKit bridge
-    func getRealityEntity(for entity: any SceneEntity) -> RealityKit.Entity?
-}
-```
-
-### Selection System
-
-```swift
-class SelectionManager: ObservableObject {
-    @Published private(set) var primarySelection: (any SceneEntity)?
-    @Published private(set) var selection: [any SceneEntity] = []
-    
-    func select(_ entity: any SceneEntity)
-    func addToSelection(_ entity: any SceneEntity)
-    func isSelected(_ entity: any SceneEntity) -> Bool
-}
-```
-
-## RealityKit Bridge
-
-### Namespace Disambiguation
-
-```swift
-// CRITICAL: Always disambiguate between your Entity and RealityKit's
-
-// Your custom Entity class
-let myEntity = Entity(name: "Custom")
-
-// RealityKit's Entity
+// Apple's full entity
 let rkEntity = RealityKit.Entity()
+rkEntity.components.set(...)  // Full API
 
-// Accessing the wrapped RealityKit entity
-let realityEntity = myEntity.realityEntity  // Returns RealityKit.Entity
+// The bridge
+let wrapped = myEntity.realityEntity  // Access full power
+
+// ViewportState uses RealityKit.Entity directly
+viewportState.rootEntity.addChild(myEntity.realityEntity)
 ```
 
-### ViewportState Integration
+### Why ViewportState Uses RealityKit.Entity
 
 ```swift
-class ViewportState: ObservableObject {
-    // Uses RealityKit.Entity directly
+class ViewportState {
+    // Uses RealityKit.Entity for rendering
     let rootEntity = RealityKit.Entity()
-    let cameraEntity = PerspectiveCamera()  // RealityKit type
-    var lightEntities: [UUID: RealityKit.Entity] = [:]
-    var currentGizmo: RealityKit.Entity?
+    
+    // Why? Because ViewportState is about rendering,
+    // not about your simplified API
+}
+
+// Your entities bridge to it
+sceneManager.entities.forEach { entity in
+    viewportState.rootEntity.addChild(entity.realityEntity)
 }
 ```
 
 ## Performance Considerations
 
-### Optimization Strategies
+### Current Optimizations (What's Built)
 
-1. **Shared Timer for Updates**
-   ```swift
-   // All entities share one timer instead of individual timers
-   private static let sharedUpdateTimer = Timer.publish(every: 1.0/60.0, on: .main, in: .common)
-   ```
+```swift
+// Shared update timer
+private static let sharedTimer = Timer.publish(every: 1/60, on: .main, in: .common)
 
-2. **Lazy Component Access**
-   ```swift
-   // Only access components when needed
-   if entity.hasComponent(ModelComponent.self) {
-       let model = entity.getComponent(ModelComponent.self)
-   }
-   ```
+// Simple batching
+func updateAllPositions(_ delta: SIMD3<Float>) {
+    entities.forEach { $0.position += delta }
+}
+```
 
-3. **Batch Operations**
-   ```swift
-   // Update multiple entities in one pass
-   sceneManager.batchUpdate(entities) { entity in
-       entity.position += delta
-   }
-   ```
+### Future Optimizations (When Needed)
+
+```swift
+// Entity pooling - when you have many entities
+// Frustum culling - when scenes get large  
+// LOD system - when detail becomes expensive
+// Spatial indexing - when you need fast lookups
+
+// Not built yet because YAGNI (You Aren't Gonna Need It)
+```
 
 ## Common Patterns
 
-### Entity Factory Pattern
-
+### The "Good Enough" Pattern
 ```swift
-extension Entity {
-    static func createLight(type: LightEntity.LightType, intensity: Float) -> LightEntity {
-        let light = LightEntity(name: "\(type) Light", type: type)
-        light.intensity = intensity
-        return light
+// Don't over-engineer
+struct EntityFactory {
+    // Just what you need now
+    static func createLight() -> LightEntity {
+        return LightEntity(name: "Light", type: .directional)
     }
     
-    static func createCamera(fov: Float = 60) -> CameraEntity {
-        let camera = CameraEntity(name: "Camera")
-        camera.fov = fov
-        return camera
-    }
+    // Not this:
+    // static func createLightWithShadowsAndCookiesAndVolumetrics(...) 
 }
 ```
 
-### Component Queries
-
+### The "Escape Hatch" Pattern
 ```swift
-// Find all entities with specific components
-let modelsWithCollision = entities.filter { entity in
-    entity.hasComponent(ModelComponent.self) && 
-    entity.hasComponent(CollisionComponent.self)
-}
+// Wrapper for common case
+entity.position = newPosition
+
+// Escape hatch for advanced case
+entity.realityEntity.components.set(
+    MyCustomComponent()  // When wrapper doesn't have it
+)
 ```
 
-### Entity Templates
-
+### The "Grow When Needed" Pattern
 ```swift
-// Define reusable entity configurations
-struct EntityTemplate {
-    static func playerCharacter() -> ModelEntity {
-        let player = ModelEntity(modelNamed: "Player")
-        player.position = SIMD3<Float>(0, 0, 0)
-        player.scale = SIMD3<Float>(1, 1, 1)
-        // Add components...
-        return player
-    }
+// Start with basics
+class Entity {
+    var position: SIMD3<Float>
+}
+
+// User needs rotation? Add it:
+class Entity {
+    var position: SIMD3<Float>
+    var rotation: simd_quatf  // Added in v1.1
+}
+
+// User needs physics? Add it:
+class Entity {
+    var position: SIMD3<Float>
+    var rotation: simd_quatf
+    var velocity: SIMD3<Float>  // Added in v2.0
 }
 ```
 
 ## Migration from Node System
 
-### Key Differences
+The Node system is completely gone. This is not a 1:1 replacement but a fresh start:
 
-| Node System (OLD) | Entity System (NEW) |
-|-------------------|---------------------|
-| `SceneNode` protocol | `SceneEntity` protocol |
-| `nodeType` property | `entityType` property |
-| `CameraNode` class | `CameraEntity` class |
-| `LightNode` class | `LightEntity` class |
-| `ModelNode` class | `ModelEntity` class |
-| `nodes` array | `entities` array |
-| `selectedNode` | `selectedEntity` |
-
-### Migration Examples
-
-```swift
-// OLD Node System
-let node = CameraNode()
-node.nodeType = .camera
-sceneManager.nodes.append(node)
-
-// NEW Entity System
-let entity = CameraEntity()
-entity.entityType = .camera  // Set automatically
-sceneManager.addEntity(entity)
-```
+| Node System (OLD) | Entity System (NEW) | Philosophy |
+|-------------------|---------------------|------------|
+| Complex hierarchy | Simple wrapper | Start simple |
+| Everything upfront | Grow as needed | YAGNI |
+| Custom everything | RealityKit backed | Use platform |
+| Synchronous | Async where needed | Modern Swift |
 
 ## Best Practices
 
-### 1. Always Use Type-Safe Accessors
+### DO: Start Simple
 ```swift
-// Good
-if let camera = entity as? CameraEntity {
-    camera.fov = 45
+// Good - Ship it!
+class MyEntity: Entity {
+    var health: Int = 100
 }
 
-// Avoid
-entity.setValue(45, forKey: "fov")  // Not type-safe
-```
-
-### 2. Leverage Protocol Conformance
-```swift
-// All entities conform to SceneEntity
-func processAnyEntity(_ entity: any SceneEntity) {
-    print("Processing: \(entity.name)")
-    entity.position = .zero
+// Over-engineering - Don't do this day 1
+class MyEntity: Entity {
+    var health: HealthComponent
+    var stats: StatsComponent
+    var buffs: BuffSystem
+    // ... 50 more systems
 }
 ```
 
-### 3. Maintain Clean Hierarchy
+### DO: Use the Escape Hatch
 ```swift
-// Organize entities logically
-let environmentGroup = Entity.group(name: "Environment")
-environmentGroup.addChild(terrain)
-environmentGroup.addChild(sky)
-environmentGroup.addChild(foliage)
+// Wrapper doesn't have it? No problem!
+entity.realityEntity.components.set(
+    ParticleEmitterComponent()  // Direct RealityKit
+)
 ```
 
-### 4. Use Observable Properties
+### DON'T: Wrap Everything
 ```swift
-// SwiftUI automatically updates when properties change
-struct EntityView: View {
-    @ObservedObject var entity: Entity
-    
-    var body: some View {
-        Text("Position: \(entity.position)")  // Auto-updates
-    }
-}
+// Don't wrap what you don't use
+// ❌ AudioComponent wrapper with 50 methods
+// ✅ entity.realityEntity.components.set(AudioComponent()) when needed
 ```
+
+### DO: Keep It Observable
+```swift
+// SwiftUI-friendly from day 1
+@Published var position: SIMD3<Float>
+// Not just: var position: SIMD3<Float>
+```
+
+## Future Growth Areas
+
+### Near Term (As Needed)
+- [ ] Animation basics (when objects need to move)
+- [ ] Collision detection (when things need to hit)
+- [ ] Audio triggers (when you need sound)
+- [ ] Parent constraints (when you need attachments)
+
+### Medium Term (If Needed)
+- [ ] Physics simulation (if you build physics games)
+- [ ] Particle effects (if you need visual effects)
+- [ ] Network replication (if you go multiplayer)
+- [ ] Procedural mesh (if you generate geometry)
+
+### Long Term (Maybe Never)
+- [ ] Full ECS wrapper parity
+- [ ] Custom component system
+- [ ] Entity archetypes
+- [ ] Parallel systems
+
+**Remember: These are possibilities, not commitments. Build what you need when you need it.**
+
+## Known Limitations (And That's OK)
+
+Current limitations that are **intentional**:
+- No complex animation system (use realityEntity)
+- No physics wrapper (use realityEntity)  
+- No audio abstractions (use realityEntity)
+- No networking (not needed yet)
+
+These aren't bugs, they're features. The wrapper stays simple and you can always access RealityKit directly.
 
 ## Debugging
 
-### Entity Inspector
+### Simple Debug Info
 ```swift
 extension Entity {
-    func debugDescription() -> String {
+    var debugInfo: String {
         """
-        Entity: \(name)
-        Type: \(entityType)
+        \(name) [\(entityType)]
         Position: \(position)
-        Children: \(children.count)
-        Components: \(realityEntity.components.count)
+        Has \(children.count) children
         """
     }
 }
 ```
 
-### Hierarchy Visualization
+### When You Need More
 ```swift
-func printHierarchy(_ entity: Entity, indent: Int = 0) {
-    let padding = String(repeating: "  ", count: indent)
-    print("\(padding)├─ \(entity.name) [\(entity.entityType)]")
-    for child in entity.children {
-        printHierarchy(child, indent: indent + 1)
-    }
-}
+// Access full RealityKit debug info
+entity.realityEntity.debugDescription
+entity.realityEntity.components.count
 ```
 
-## Future Enhancements
-
-### Planned Features
-- [ ] Entity pooling for performance
-- [ ] Async component loading
-- [ ] Entity templates/prefabs
-- [ ] Component serialization
-- [ ] Entity state machines
-- [ ] LOD system integration
-
-### Known Limitations
-- SpotLight using PointLight as fallback
-- No area lights in RealityKit
-- Limited component introspection
-- No runtime component creation
+## See Also
+- **Architecture.md** - Overall design philosophy
+- **ViewportState.md** - How entities integrate with rendering
+- **SceneManager.md** - Entity lifecycle management
+- **MetalRendering.md** - How entities are rendered
 
 ## Summary
 
-The Entity/ECS system provides a modern, performant, and developer-friendly architecture that:
-- ✅ Replaces the entire Node system
-- ✅ Wraps RealityKit with intuitive APIs
-- ✅ Integrates seamlessly with SwiftUI
-- ✅ Maintains 60fps performance
-- ✅ Supports all platforms (iOS, macOS, tvOS)
+The Entity system is a **pragmatic wrapper** that:
+- ✅ **Starts simple** - Just transforms and basic types
+- ✅ **Grows with needs** - Add features when you use them
+- ✅ **Provides escape hatches** - Full RealityKit always available
+- ✅ **Ships today** - Not perfect, but perfectly functional
+- ✅ **Stays maintainable** - Less code = fewer bugs
 
-This is the foundation upon which all other systems (rendering, UI, interaction) are built.
+This is not about building a complete Entity system on day one. It's about building exactly what you need to ship your alpha, with room to grow into whatever your game becomes.

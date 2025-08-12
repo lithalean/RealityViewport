@@ -1,31 +1,65 @@
 # RealityViewport Architecture
 
-**Purpose**: Technical blueprint and system design for Entity/ECS architecture  
+**Module**: ARCHITECTURE.md  
 **Version**: 3.0  
+**Architecture**: Entity/ECS + Metal Rendering + Adaptive UI  
+**Philosophy**: Apple-native Unity DOTS alternative  
 **Status**: Production Ready - ~70% Complete  
 **Last Updated**: August 2025
 
 ## Architectural Overview
 
-### Core Architecture Formula
+### Core Philosophy
+**"What if Apple made Unity with DOTS?"**
+
+This is an Apple-native 3D editor that embraces RealityKit's ECS foundation while providing a simplified Entity wrapper that will evolve over time. We combine the performance philosophy of Unity's Data-Oriented Technology Stack (DOTS) with Apple's native frameworks, creating a professional-grade viewport that can grow into a full game engine while staying 100% Apple native.
+
+### Architecture Formula
 ```
-Entity/ECS + Metal Rendering + Adaptive UI + RealityKit = Professional 3D Editor
+Simplified Entity Wrappers + RealityKit ECS + Metal GPU Rendering + Adaptive UI = Apple-Native Unity Alternative
 ```
 
-### Critical Architecture Changes (v2.0 → v3.0)
+### Critical Architecture Evolution (v2.0 → v3.0)
 ```diff
 - Node System (BaseSceneNode hierarchy)
-+ Entity/ECS System (Unity DOTS-inspired)
++ Entity/ECS System (Simplified wrappers over RealityKit.Entity)
 
 - CPU-based grid rendering
-+ GPU Metal pipeline (Sky + Grid)
++ GPU Metal pipeline (Sky + Grid shaders)
 
 - Platform-specific views (iPhoneView, MacView)
 + Single adaptive ContentView (WWDC25 standard)
 
-- Node-based selection
-+ Entity-based selection with SceneEntity protocol
+- Complex entity system on day 1
++ Simplified Entity wrapper that grows with needs
 ```
+
+## 📚 Document Reading Guide
+
+### For Different Purposes
+
+#### 🎯 "I want to understand the system"
+1. **Architecture.md** - Design philosophy and patterns
+2. **EntitySystem.md** - Core Entity wrapper system
+3. **MetalRendering.md** - GPU rendering pipeline
+4. **Implementation.md** - Current state
+
+#### 🐛 "I need to fix a bug"
+1. **Implementation.md** - Known issues and status
+2. **session.json** - Runtime state
+3. **EntitySystem.md** or **MetalRendering.md** - Depending on bug type
+4. Check component's specific status in relevant manager
+
+#### 🚀 "I want to add a feature"
+1. **Architecture.md** - Patterns to follow
+2. **EntitySystem.md** - How to extend entities
+3. **Visual.md** - UI integration patterns
+4. **Navigation.md** - User flow integration
+
+#### 📁 "I'm working with files"
+1. **FileOperations.md** - Serialization patterns
+2. **Navigation.md** - Import/export flows
+3. **EntitySystem.md** - Entity data structures
 
 ## System Architecture Layers
 
@@ -37,8 +71,12 @@ Entity/ECS + Metal Rendering + Adaptive UI + RealityKit = Professional 3D Editor
 │            UI Layer (SwiftUI)               │
 │    ContentView (Adaptive) + Inspector       │
 ├─────────────────────────────────────────────┤
-│          Entity/ECS Layer                   │
+│     Simplified Entity Layer (Growing)       │
 │   Entity, CameraEntity, LightEntity, etc.   │
+│          (Wrappers over RealityKit)         │
+├─────────────────────────────────────────────┤
+│        RealityKit ECS (Foundation)          │
+│    Full Apple Entity Component System       │
 ├─────────────────────────────────────────────┤
 │           Manager Layer                     │
 │  Scene, Selection, Project, Control, DayNight│
@@ -51,45 +89,97 @@ Entity/ECS + Metal Rendering + Adaptive UI + RealityKit = Professional 3D Editor
 └─────────────────────────────────────────────┘
 ```
 
+## Standard Code Patterns
+
+### Entity Disambiguation Pattern
+```swift
+// ALWAYS use this pattern to clarify Entity types:
+
+// Your simplified Entity wrapper (will evolve over time)
+import RealityViewport
+let customEntity = Entity()              // Your Entity class
+customEntity.position = SIMD3<Float>()   // Simplified API
+
+// Apple's full-featured Entity
+import RealityKit
+let rkEntity = RealityKit.Entity()       // Apple's Entity
+rkEntity.components[Transform.self]      // Full ECS access
+
+// Bridge between systems
+let wrapped = customEntity.realityEntity // Returns RealityKit.Entity
+
+// ViewportState always uses RealityKit.Entity directly
+viewportState.rootEntity                 // RealityKit.Entity type
+```
+
+### Performance Baseline
+```swift
+// Standard performance metrics (60fps = 16.67ms budget)
+let performanceTargets = """
+  Sky Rendering: 0.5ms
+  Grid Rendering: 0.3ms  
+  Entity Updates: 1-2ms
+  RealityKit Scene: 8-12ms
+  SwiftUI Composition: 2ms
+  Total: 11-15ms (leaving 1-5ms headroom)
+"""
+```
+
+### Manager Access Pattern
+```swift
+// Consistent manager access throughout app
+@EnvironmentObject var sceneManager: SceneManager
+@EnvironmentObject var projectManager: ProjectManager
+@StateObject private var selectionManager = sceneManager.selectionManager
+```
+
 ## Core Design Patterns
 
-### Pattern 1: Entity/ECS Hybrid Architecture
+### Pattern 1: Simplified Entity Wrapper System
 ```swift
-PURPOSE: Unity-like ease with RealityKit performance
+PURPOSE: Start simple, grow with needs
+PHILOSOPHY: 
+  - Day 1: Basic position/rotation/scale wrapper
+  - Over time: Add features as game requires them
+  - End goal: Potentially full parity with RealityKit.Entity
 IMPLEMENTATION: 
-  - Entity wrapper class around RealityKit.Entity
-  - SceneEntity protocol for polymorphic behavior
-  - Observable properties for SwiftUI binding
+  - Entity class wraps RealityKit.Entity
+  - Exposes simplified, Unity-like API
+  - Direct access to underlying RealityKit.Entity when needed
 BENEFITS:
-  - Familiar API for Unity developers
-  - Native RealityKit performance
-  - Type-safe component access
+  - Ship alpha quickly with working basics
+  - No unnecessary complexity upfront
+  - Can access full RealityKit power when needed
+  - API evolves based on real requirements
 ```
 
 ### Pattern 2: Metal + RealityKit Rendering Composition
 ```swift
 PURPOSE: GPU-accelerated backgrounds with 3D content
 IMPLEMENTATION:
-  - Metal renders sky gradient and grid
-  - RealityKit renders 3D entities
-  - Transparent layer composition
+  - Metal renders sky gradient (day/night cycle)
+  - Metal renders reference grid with distance fade
+  - RealityKit renders 3D entities and models
+  - Transparent layer composition in SwiftUI
 BENEFITS:
-  - 60fps performance
+  - 60fps consistent performance
   - Dynamic atmospheric effects
   - Minimal CPU overhead
+  - Professional visual quality
 ```
 
-### Pattern 3: ViewportState with RealityKit.Entity
+### Pattern 3: ViewportState with Native RealityKit.Entity
 ```swift
-PURPOSE: Centralized viewport state using native types
+PURPOSE: Clean separation between wrapper and native systems
 IMPLEMENTATION:
-  - Uses RealityKit.Entity directly (not custom Entity)
-  - PerspectiveCamera for viewport camera
-  - Observable for SwiftUI updates
+  - ViewportState uses RealityKit.Entity directly
+  - No custom Entity wrapper pollution in viewport
+  - SceneManager bridges between wrapper and native
 BENEFITS:
   - No type confusion
-  - Direct RealityKit integration
-  - Clean separation of concerns
+  - Direct RealityKit performance
+  - Clear architectural boundaries
+  - Easy to reason about
 ```
 
 ### Pattern 4: Manager-Driven Architecture
@@ -105,6 +195,7 @@ BENEFITS:
   - Single responsibility principle
   - Easy testing and debugging
   - Clear data flow
+  - Modular enhancement
 ```
 
 ### Pattern 5: Protocol-Based Entity System
@@ -120,58 +211,114 @@ BENEFITS:
   - Polymorphic entity handling
   - Type-safe collections
   - Protocol extensions for shared behavior
+  - Easy to add new entity types
 ```
 
 ### Pattern 6: Adaptive UI (WWDC25 Standard)
 ```swift
 PURPOSE: Single view hierarchy for all platforms
 IMPLEMENTATION:
-  - NavigationSplitView for regular sizes
-  - NavigationStack for compact sizes
-  - Platform-specific modifiers only when needed
+  - NavigationSplitView for regular sizes (iPad/Mac)
+  - NavigationStack for compact sizes (iPhone)
+  - Platform-specific modifiers only when essential
 BENEFITS:
-  - 100% code reuse
-  - Automatic adaptation
-  - Future-proof for new devices
+  - 95% code reuse across platforms
+  - Automatic adaptation to new devices
+  - Consistent user experience
+  - Reduced maintenance burden
 ```
+
+## Glossary
+
+### Core Terms
+
+**Entity (Custom)**: Your simplified wrapper class around RealityKit.Entity, providing a Unity-like API. Will evolve toward full feature parity with Apple's Entity over time.
+
+**RealityKit.Entity**: Apple's native Entity class with full ECS capabilities. Your custom Entity wraps this for ease of use.
+
+**ECS (Entity Component System)**: A game architecture pattern where:
+- Entities are containers with unique IDs
+- Components are pure data
+- Systems process entities with specific components
+
+**DOTS (Data-Oriented Technology Stack)**: Unity's modern architecture focusing on cache-efficient data layout and parallel processing. Your system is "what if Apple made DOTS."
+
+**Metal Rendering Pipeline**: GPU-accelerated rendering using Apple's Metal API for sky and grid, composited with RealityKit.
+
+**Adaptive UI**: Single SwiftUI view hierarchy that automatically adjusts layout based on size class (WWDC'25 best practice).
+
+**SceneEntity Protocol**: Your interface that all entity types must conform to, providing polymorphic behavior.
+
+**ViewportState**: The single source of truth for viewport rendering, managing RealityKit.Entity instances directly.
+
+**Billboard Component**: A component that makes an entity always face the camera (useful for UI elements in 3D space).
+
+**Gizmo**: 3D manipulation widget for transforming selected entities (move, rotate, scale).
+
+### Architecture Philosophy
+
+This is an **Apple-native Unity DOTS alternative** that:
+- Uses RealityKit's ECS as the foundation
+- Adds a simplified Entity wrapper that will grow over time
+- Combines Metal + RealityKit for optimal performance
+- Follows Apple's design patterns and best practices
+- Aims to be "what Unity would be if Apple built it"
 
 ## Component Architecture
 
 ```
 RealityViewportApp
 ├── Managers (EnvironmentObject)
-│   ├── SceneManager
-│   ├── ProjectManager
-│   └── SelectionManager (via SceneManager)
+│   ├── SceneManager (Entity lifecycle)
+│   ├── ProjectManager (Persistence)
+│   ├── SelectionManager (via SceneManager)
+│   └── DayNightManager (Atmospheric effects)
 │
 ├── ContentView (Adaptive)
 │   ├── ViewportStack
-│   │   ├── MetalSkyView (Layer 0)
-│   │   ├── ViewportMetalGrid (Layer 1)
-│   │   └── ViewportView (Layer 2)
-│   │       ├── RealityView (Entities)
+│   │   ├── MetalSkyView (Layer 0: GPU sky gradient)
+│   │   ├── ViewportMetalGrid (Layer 1: GPU grid)
+│   │   └── ViewportView (Layer 2: RealityKit content)
+│   │       ├── RealityView (3D entities)
 │   │       ├── ViewportToolbar
 │   │       └── CameraController
 │   │
 │   └── Inspector (Adaptive)
-│       ├── OutlinerView
-│       └── PropertiesView
+│       ├── OutlinerView (Entity hierarchy)
+│       └── PropertiesView (Entity properties)
 │
 └── Sheets/Modals
-    └── ProjectBrowserView
+    ├── ProjectBrowserView
+    ├── Import Dialog
+    └── Export Options
 ```
 
 ## Entity System Architecture
+
+### Entity Wrapper Evolution
+```
+Current (v3.0) - Simplified Wrapper:
+├── Basic transforms (position, rotation, scale)
+├── Observable properties for SwiftUI
+├── Direct RealityKit.Entity access
+└── Type-specific features (Camera, Light, Model)
+
+Future Growth Path:
+├── Animation support (as needed)
+├── Physics integration (when required)
+├── Advanced components (on demand)
+└── Full ECS access (already available via .realityEntity)
+```
 
 ### Entity Hierarchy
 ```
 SceneEntity (Protocol)
     │
-    ├── Entity (Base Class)
-    │   ├── realityEntity: RealityKit.Entity
-    │   ├── position: SIMD3<Float>
-    │   ├── rotation: simd_quatf
-    │   └── scale: SIMD3<Float>
+    ├── Entity (Base Wrapper Class)
+    │   ├── realityEntity: RealityKit.Entity  // Bridge to full ECS
+    │   ├── position: SIMD3<Float>           // Simplified access
+    │   ├── rotation: simd_quatf             // Unity-like API
+    │   └── scale: SIMD3<Float>              // Observable
     │
     ├── CameraEntity : Entity
     │   ├── fov: Float
@@ -187,17 +334,66 @@ SceneEntity (Protocol)
         └── isLoading: Bool
 ```
 
-### Component Management
+### Component Access Patterns
 ```swift
-// ECS-style component access
+// Simplified API (your wrapper)
+entity.position = SIMD3<Float>(1, 2, 3)
+entity.name = "Player"
+
+// Full ECS access (when needed)
 entity.realityEntity.components.set(ModelComponent(...))
 entity.realityEntity.components[CollisionComponent.self]
-entity.realityEntity.components.remove(InputTargetComponent.self)
 
-// Custom components
-EntitySelectionComponent
-BillboardComponent
-TransformGizmoComponent
+// Custom components (growing library)
+EntitySelectionComponent  // For selection system
+BillboardComponent        // Always face camera
+TransformGizmoComponent   // Visual manipulation
+```
+
+## Key System Flows
+
+### Entity Creation Flow
+```mermaid
+sequenceDiagram
+    User->>UI: Click "Add Light"
+    UI->>SceneManager: addEntity(LightEntity)
+    SceneManager->>Entity: new LightEntity()
+    Entity->>RealityKit: Create RealityKit.Entity
+    Entity->>RealityKit: Add LightComponent
+    SceneManager->>ViewportState: rootEntity.addChild(rkEntity)
+    SceneManager->>SelectionManager: select(entity)
+    SelectionManager->>ViewportState: Create gizmo
+    ViewportState->>RealityView: needsUpdate.toggle()
+    RealityView->>Screen: Render updated scene
+```
+
+### Render Pipeline Flow
+```mermaid
+sequenceDiagram
+    Frame->>DayNightManager: Update phase
+    DayNightManager->>MetalSkyRenderer: Set uniforms
+    Frame->>MetalSkyRenderer: Render gradient
+    Frame->>MetalGridRenderer: Render grid
+    Frame->>RealityKit: Update entities
+    Frame->>RealityKit: Render 3D scene
+    Frame->>SwiftUI: Composite layers
+    SwiftUI->>Screen: Present frame
+```
+
+### File Save Flow with Entity Serialization
+```mermaid
+sequenceDiagram
+    User->>UI: Save Project
+    UI->>ProjectManager: saveProject()
+    ProjectManager->>SceneManager: Get entities
+    loop For each entity
+        SceneManager->>Entity: Serialize to ProjectEntityData
+        Entity->>ProjectEntityData: Extract properties
+    end
+    ProjectManager->>ProjectSceneData: Compile all entities
+    ProjectManager->>JSONEncoder: Encode to JSON
+    JSONEncoder->>FileSystem: Write .rvproject
+    FileSystem->>User: Save complete
 ```
 
 ## State Management Architecture
@@ -209,18 +405,18 @@ User Input → Manager → @Published Property → SwiftUI View → RealityKit/M
 
 ### Key State Containers
 ```swift
-// Scene State
+// Scene State (manages custom Entity wrappers)
 SceneManager {
     @Published var entities: [any SceneEntity]
     @Published var selectedEntity: (any SceneEntity)?
-    var realityEntities: [UUID: RealityKit.Entity]
+    var realityEntities: [UUID: RealityKit.Entity]  // Bridge mapping
 }
 
-// Viewport State  
+// Viewport State (uses RealityKit.Entity directly)
 ViewportState {
-    let rootEntity: RealityKit.Entity  // Note: RealityKit type
-    let cameraEntity: PerspectiveCamera
-    var lightEntities: [UUID: RealityKit.Entity]
+    let rootEntity: RealityKit.Entity              // Native type
+    let cameraEntity: PerspectiveCamera            // RealityKit subclass
+    var lightEntities: [UUID: RealityKit.Entity]   // Native tracking
     @Published var needsUpdate: Bool
 }
 
@@ -233,72 +429,42 @@ ProjectManager {
 
 ## Rendering Pipeline Architecture
 
-### Layer Composition
+### Layer Composition (Back to Front)
 ```
-1. Metal Sky Renderer
+Layer 0: Metal Sky Renderer
    - Full-screen gradient
-   - Day/night cycle
+   - Day/night cycle (4 phases)
    - GPU shader-based
+   - 0.5ms render time
 
-2. Metal Grid Renderer  
+Layer 1: Metal Grid Renderer  
    - Ground plane grid
    - Distance-based fade
-   - Colored axes
+   - Colored axes (R/G/B)
+   - 0.3ms render time
 
-3. RealityKit Scene
-   - 3D entities
-   - Gizmos
+Layer 2: RealityKit Scene
+   - 3D entities (models)
+   - Gizmos (transform handles)
    - Billboard icons
+   - 8-12ms render time
 
 Composition: Transparent overlay with Color.clear backgrounds
-```
-
-### Render Loop
-```swift
-// 60fps target (16.67ms budget)
-Frame {
-    1. Update day/night phase (0.1ms)
-    2. Render sky gradient (0.5ms)
-    3. Render grid (0.3ms)
-    4. Update entity transforms (1ms)
-    5. Render RealityKit scene (8-12ms)
-    6. SwiftUI composition (2ms)
-    Total: ~12-15ms (leaving headroom)
-}
-```
-
-## Critical Type Disambiguation
-
-### Entity Namespace Issues
-```swift
-// PROBLEM: Two Entity types exist
-Entity              // Your custom wrapper class
-RealityKit.Entity   // Native RealityKit type
-
-// SOLUTION: Always disambiguate
-let customEntity = Entity()                    // Your Entity
-let rkEntity = RealityKit.Entity()            // RealityKit's
-let wrapped = customEntity.realityEntity      // Returns RealityKit.Entity
-
-// ViewportState uses RealityKit.Entity directly
-class ViewportState {
-    let rootEntity = RealityKit.Entity()      // NOT custom Entity
-    let cameraEntity = PerspectiveCamera()    // RealityKit subclass
-}
+Total: 11-15ms @ 60fps (1-5ms headroom)
 ```
 
 ## Platform Abstraction Layer
 
 ### Cross-Platform Types
 ```swift
-// PlatformColor.swift
+// Unified color type
 #if os(macOS)
     typealias PlatformColor = NSColor
 #else
     typealias PlatformColor = UIColor
 #endif
 
-// PlatformImage
+// Unified image type
 #if os(macOS)
     typealias PlatformImage = NSImage
 #else
@@ -306,16 +472,16 @@ class ViewportState {
 #endif
 ```
 
-### Platform-Specific Features
+### Adaptive Features
 ```swift
-// Adaptive modifiers
-.if(os: .macOS) { view in
-    view.navigationBarTitleDisplayMode(.inline)
-}
+// Size class detection
+@Environment(\.horizontalSizeClass) var sizeClass
 
-// Platform capabilities
+// Platform-specific only when essential
 #if os(iOS)
-    hapticFeedback(.light)
+    .onTapGesture { }  // Touch
+#elseif os(macOS)
+    .onHover { }        // Mouse
 #endif
 ```
 
@@ -327,126 +493,117 @@ class ViewportState {
 let entity = Entity()
 viewportState.rootEntity = entity  // Error: expects RealityKit.Entity
 
-// CORRECT - Use proper types
+// CORRECT - Use bridge
 let entity = Entity()
 viewportState.rootEntity.addChild(entity.realityEntity)
 ```
 
-### ❌ NEVER: Direct Node References (OLD SYSTEM)
+### ❌ NEVER: Over-Engineer Early
 ```swift
-// WRONG - Node system removed
-sceneManager.nodes.append(node)
-selectedNode.nodeType = .camera
+// WRONG - Building everything day 1
+class Entity {
+    // 100 properties and methods before shipping...
+}
 
-// CORRECT - Use Entity system
-sceneManager.addEntity(entity)
-selectedEntity.entityType = .camera
+// CORRECT - Start simple, grow with needs
+class Entity {
+    // Just what's needed for alpha
+    var position: SIMD3<Float>
+    var realityEntity: RealityKit.Entity  // Escape hatch
+}
 ```
 
 ### ❌ NEVER: Platform-Specific Views
 ```swift
-// WRONG - Old approach
+// WRONG - Maintaining multiple views
 #if os(iOS)
     iPhoneView()
 #else
     MacView()
 #endif
 
-// CORRECT - Adaptive UI
+// CORRECT - Single adaptive view
 ContentView()  // Adapts automatically
-```
-
-### ❌ NEVER: CPU-Based Grid Rendering
-```swift
-// WRONG - Performance impact
-ForEach(gridLines) { line in
-    Path { ... }
-}
-
-// CORRECT - GPU rendering
-ViewportMetalGrid()  // Metal shader
-```
-
-### ❌ NEVER: Synchronous Model Loading
-```swift
-// WRONG - Blocks UI
-let model = try ModelEntity.loadModel(contentsOf: url)
-
-// CORRECT - Async loading
-Task {
-    await model.load(from: url)
-}
 ```
 
 ## Architectural Decisions Log
 
-### Decision: Entity/ECS Over Node System
-**Rationale**: Better performance, Unity-familiar API, native RealityKit integration  
-**Implementation**: Entity wrapper with SceneEntity protocol  
-**Result**: Cleaner architecture, better performance, easier component composition
+### Decision: Simplified Entity Wrappers
+**Rationale**: Can't build Rome in a day - start simple, grow with needs  
+**Implementation**: Basic Entity wrapper exposing core features  
+**Result**: Shipping alpha quickly while keeping door open for growth
+
+### Decision: "Apple-Native Unity DOTS"
+**Rationale**: Best of both worlds - Unity patterns with Apple performance  
+**Implementation**: RealityKit ECS foundation with familiar API on top  
+**Result**: Familiar for Unity devs, native performance
 
 ### Decision: Metal Rendering Pipeline
-**Rationale**: GPU acceleration for grid and sky, 60fps target  
-**Implementation**: Metal shaders with transparent composition  
-**Result**: Smooth performance, dynamic atmospherics
+**Rationale**: GPU acceleration essential for 60fps  
+**Implementation**: Metal shaders for sky/grid, RealityKit for 3D  
+**Result**: Smooth performance with atmospheric effects
 
 ### Decision: Single Adaptive View
 **Rationale**: WWDC25 best practices, maintainability  
-**Implementation**: NavigationSplitView/Stack with size class detection  
-**Result**: 100% code reuse, automatic platform adaptation
-
-### Decision: RealityKit.Entity in ViewportState
-**Rationale**: Avoid type confusion, direct RealityKit integration  
-**Implementation**: Explicit RealityKit.Entity types  
-**Result**: Clear type boundaries, no ambiguity
-
-### Decision: Manager Pattern Retention
-**Rationale**: Proven architecture, clear responsibilities  
-**Implementation**: Enhanced managers for Entity system  
-**Result**: Smooth migration, familiar patterns
+**Implementation**: NavigationSplitView/Stack with size classes  
+**Result**: 95% code reuse across platforms
 
 ## Performance Considerations
 
-### Memory Management
-```swift
-// Shared timer for all entities
-private static let sharedUpdateTimer = Timer.publish(...)
+### Current Performance Profile
+```yaml
+Frame Budget: 16.67ms (60fps)
+Current Usage: 11-15ms
+Headroom: 1-5ms
 
-// Lazy component access
-if entity.hasComponent(ModelComponent.self) { ... }
-
-// Entity pooling (future)
-EntityPool.get<ModelEntity>()
+Breakdown:
+  Sky Rendering: 0.5ms (Metal GPU)
+  Grid Rendering: 0.3ms (Metal GPU)
+  Entity Updates: 1-2ms (CPU)
+  RealityKit Scene: 8-12ms (GPU + CPU)
+  SwiftUI: 2ms (CPU)
 ```
 
 ### Optimization Strategies
-- Batch entity updates
-- Frustum culling for large scenes
-- LOD system (planned)
-- Texture atlasing (planned)
+- Batch entity updates when possible
+- Frustum culling for off-screen entities
+- LOD system (future)
+- Entity pooling (future)
+- Texture atlasing (future)
 
 ## Future Architecture Enhancements
 
-### Planned
-- [ ] Entity pooling system
-- [ ] Async component loading
-- [ ] Plugin architecture
-- [ ] Undo/Redo system
-- [ ] Multi-window support
+### Near Term (Growing the Entity System)
+- [ ] Animation support (when needed)
+- [ ] Physics integration (when required)
+- [ ] Particle system wrapper (on demand)
+- [ ] Audio components (as game requires)
 
-### Experimental
-- [ ] Compute shaders for particles
-- [ ] Entity Component System v2
-- [ ] Swift Macros for components
-- [ ] Distributed rendering
+### Medium Term (System Enhancements)
+- [ ] Entity pooling for performance
+- [ ] Undo/Redo system
+- [ ] Plugin architecture
+- [ ] Multi-window support (macOS)
+
+### Long Term (Engine Evolution)
+- [ ] Full ECS wrapper parity
+- [ ] Compute shaders for effects
+- [ ] Networking/multiplayer
+- [ ] Cloud project sync
+
+## See Also
+- **EntitySystem.md** - Detailed Entity wrapper implementation
+- **MetalRendering.md** - GPU rendering pipeline details
+- **ViewportState.md** - Viewport state management
+- **Implementation.md** - Current implementation status
 
 ## Architecture Summary
 
-The v3.0 architecture represents a complete modernization:
-- **Entity/ECS** replaces Node system entirely
-- **Metal rendering** provides GPU acceleration
-- **Adaptive UI** follows WWDC25 standards
-- **Type safety** with clear namespace boundaries
-- **60fps performance** across all platforms
+The v3.0 architecture represents an **Apple-native Unity DOTS alternative**:
+- **Simplified Entity wrappers** that grow with your needs
+- **RealityKit ECS foundation** for native performance
+- **Metal GPU rendering** for atmospheric effects
+- **Adaptive UI** following Apple's latest standards
+- **60fps performance** across all Apple platforms
 
-This architecture provides a solid foundation for professional 3D editing while maintaining Apple platform best practices.
+This architecture provides the perfect balance: ship quickly with a simple wrapper while maintaining access to RealityKit's full power when needed. It's not about building everything on day 1 - it's about building the right foundation that can evolve into whatever your game needs.
