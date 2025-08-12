@@ -54,17 +54,17 @@ This is not about building everything on day one. It's about shipping a working 
 | **ENTITY_SYSTEM.md** | 2.0 | ✅ UPDATED | December 2024 | Simplified wrapper that grows |
 | **IMPLEMENTATION.md** | 3.0 | ✅ UPDATED | December 2024 | 100% ready to ship philosophy |
 | **VIEWPORTSTATE.md** | 3.0 | ✅ UPDATED | December 2024 | Clean rendering bridge |
-| **METAL_RENDERING.md** | 1.0 | 🔄 CURRENT | August 2024 | GPU pipeline documentation |
-| **FILEOPERATIONS.md** | 2.0 | 🔄 CURRENT | August 2024 | Entity serialization |
-| **VISUAL.md** | 3.0 | 🔄 CURRENT | August 2024 | Adaptive UI complete |
-| **NAVIGATION.md** | 3.0 | ⚠️ NEEDS UPDATE | August 2024 | Remove Node references |
-| **GESTURES.md** | 2.0 | ⚠️ NEEDS UPDATE | August 2024 | Update Entity disambiguation |
+| **NAVIGATION.md** | 4.0 | ✅ UPDATED | December 2024 | Simple flows, room to grow |
+| **GESTURES.md** | 3.0 | ✅ UPDATED | December 2024 | Two modes, clear input |
+| **MANIFEST.md** | 5.0 | ✅ UPDATED | December 2024 | Master reference aligned |
+| **METAL_RENDERING.md** | 1.0 | ✅ ALIGNED | August 2024 | GPU pipeline documentation |
+| **FILEOPERATIONS.md** | 2.0 | ✅ ALIGNED | August 2024 | Entity serialization |
+| **VISUAL.md** | 3.0 | ✅ ALIGNED | August 2024 | Adaptive UI complete |
 | **session.json** | 3.0 | DYNAMIC | Runtime | Current state |
 
 ### Legend
-- ✅ **UPDATED** - Reflects new philosophy
-- 🔄 **CURRENT** - Working but may need philosophy alignment
-- ⚠️ **NEEDS UPDATE** - Contains old references or concepts
+- ✅ **UPDATED** - Fully reflects new philosophy (YAGNI, simplified wrapper, bridge pattern)
+- ✅ **ALIGNED** - Original documentation still accurate, philosophy compatible
 
 ## Core Glossary
 
