@@ -1,11 +1,11 @@
 # RealityViewport Navigation Context
 
 **Module**: NAVIGATION.md  
-**Version**: 4.0  
-**Architecture**: Simplified Entity Wrapper + Adaptive UI  
+**Version**: 5.0  
+**Architecture**: Simplified Entity Wrapper + Floating UI  
 **Philosophy**: Navigate what's built, not what might be  
 **Status**: Core Navigation Complete  
-**Last Updated**: December 2024
+**Last Updated**: August 25 2025
 
 ## Navigation Philosophy
 
@@ -17,7 +17,7 @@ Navigation follows our core principle: ship what works today, add complexity whe
 
 ### Mode-Based Interaction
 ```
-┌─────────────┐     [Space Key]    ┌──────────────┐
+┌─────────────┐     [Space Key]     ┌──────────────┐
 │ Environment │ ◄─────────────────► │    Entity    │
 │    Mode     │                     │     Mode     │
 └─────────────┘                     └──────────────┘
@@ -41,24 +41,44 @@ Navigation follows our core principle: ship what works today, add complexity whe
 - ⏳ Advanced selection modes
 - ⏳ Custom workspaces
 
-## Screen Hierarchy (Adaptive UI)
+## Screen Hierarchy (Floating UI System)
 
 ```
 RealityViewportApp
-├── ContentView (SINGLE ADAPTIVE VIEW) ✅
-│   ├── NavigationSplitView (iPad/Mac)
-│   │   ├── Sidebar: InspectorView
-│   │   └── Detail: ViewportStack
-│   │
-│   ├── NavigationStack (iPhone)
-│   │   ├── Main: ViewportStack
-│   │   └── Inspector: Sheet
-│   │
-│   └── ViewportStack (The Magic)
-│       ├── MetalSkyView (GPU Sky) ✅
-│       ├── ViewportMetalGrid (GPU Grid) ✅
-│       └── ViewportView (RealityKit) ✅
-│           └── Your entities render here
+├── ContentView (SIMPLIFIED ARCHITECTURE) ✅
+│   └── ZStack (Edge-to-Edge)
+│       ├── ViewportStack (Full Screen)
+│       │   ├── MetalSkyView (GPU Sky) ✅
+│       │   ├── ViewportMetalGrid (GPU Grid) ✅
+│       │   └── ViewportView (RealityKit) ✅
+│       │
+│       └── Floating UI Layer
+│           ├── ViewportToolbar (Top, centered) ✅
+│           ├── Inspector (Right, floating) ✅
+│           └── StatusBar (Bottom, floating) ✅
+```
+
+### What Changed (August 2025)
+```yaml
+Before (Complex):
+  - NavigationSplitView for iPad/Mac
+  - NavigationStack for iPhone
+  - Adaptive layouts with different paths
+  - Inspector in sidebar (left)
+  - Double toolbar rendering
+
+After (Simple):
+  - Single ZStack for all platforms ✅
+  - Edge-to-edge viewport ✅
+  - Floating glass panels ✅
+  - Inspector on right (floating) ✅
+  - Single toolbar (no duplication) ✅
+  
+Benefits:
+  - Cleaner navigation (~100 lines removed)
+  - Same experience on all platforms
+  - More viewport space
+  - Modern aesthetic
 ```
 
 ## Entity Type Disambiguation
@@ -85,9 +105,9 @@ viewportState.currentGizmo = createGizmo()  // RealityKit.Entity
 
 ### 🎬 First Launch (What Actually Happens)
 ```
-START → Empty Scene → See Sky + Grid
+START → Edge-to-Edge Viewport → See Sky + Grid
    ↓
-Add Menu → Choose Entity Type
+Floating Toolbar → Add Menu → Choose Entity Type
    ↓
 Entity Created (simplified wrapper)
    ↓
@@ -100,11 +120,13 @@ Save Project → Ship Your Game
 
 ### 📁 Project Management (Working Today)
 ```
-Projects Button → ProjectBrowserView
+Toolbar: Folder Icon → ProjectBrowserView (Sheet)
    ├─→ New: Creates empty scene ✅
    ├─→ Open: Loads .rvproject ✅
    ├─→ Save: Serializes entities ✅
    └─→ Recent: Quick access ✅
+
+Status Bar: Shows current project name ✅
 
 Not Built Yet:
    ⏳ Templates (YAGNI)
@@ -114,7 +136,7 @@ Not Built Yet:
 
 ### 💾 Import Model Flow (Simplified)
 ```
-Import Button → Select USDZ/Reality
+Toolbar: Import Icon → Select USDZ/Reality
    ↓
 ModelEntity created (wrapper)
    ↓
@@ -126,68 +148,75 @@ That's it. No complex import settings.
 No material editors. It just works.
 ```
 
-## Navigation Interactions
+## Floating UI Navigation
 
-### The Bridge in Action
+### Inspector Toggle Flow
+```
+Toolbar: Sidebar Icon
+   ↓
+Inspector slides in from right (animated)
+   ├─→ Outliner Tab: Scene hierarchy
+   └─→ Properties Tab: Selected entity
 
-When navigating, remember the bridge pattern:
+Hide: Click X or sidebar icon again
+   ↓
+Inspector slides out (animated)
+   ↓
+More viewport space
 
-```swift
-// User clicks in viewport
-func handleViewportClick(at point: CGPoint) {
-    // 1. Hit test returns RealityKit.Entity
-    let rkEntity = hitTest(at: point)
-    
-    // 2. Find your wrapper
-    let wrapper = sceneManager.findWrapper(for: rkEntity)
-    
-    // 3. Select wrapper
-    selectionManager.select(wrapper)
-    
-    // 4. Gizmo uses RealityKit.Entity
-    viewportState.currentGizmo = createGizmoEntity()
-    viewportState.currentGizmo.position = wrapper.position
-}
+Position: Always right side (floating)
+Width: Fixed 320pt (on macOS) / 280pt (on iOS)
 ```
 
-### Mode Switching
+### Floating Panel Interactions
+```yaml
+Toolbar (Top):
+  - Centered horizontally
+  - 20pt padding from edges
+  - Glass morphism (.ultraThinMaterial)
+  - 12pt rounded corners
+  - Subtle shadow for depth
 
-```swift
-// Simple two-mode system
-enum ViewportInteractionMode {
-    case environment  // Camera
-    case entity      // Selection
-}
+Inspector (Right):
+  - Slides in/out from right edge
+  - 20pt from right when visible
+  - 70pt from top (below toolbar)
+  - Resizable properties section
 
-// Toggle with space
-func toggleMode() {
-    viewportState.interactionMode = 
-        (viewportState.interactionMode == .environment) ? .entity : .environment
-        
-    // Update UI
-    updateModeIndicator()
-    updateCursor()
-    updateGizmoVisibility()
-}
+Status Bar (Bottom):
+  - Project info on left
+  - Statistics on right
+  - 20pt padding from edges
+  - Minimal height (auto-sizing)
 ```
 
 ## Platform Navigation Patterns
 
-### Adaptive Layouts (Automatic)
+### Unified Layout (All Platforms)
 ```yaml
-iPad/Mac (Regular Width):
-  Layout: NavigationSplitView
-  Inspector: Sidebar (320pt)
-  Toolbar: Top overlay
-  Gestures: Mouse/trackpad
+All Platforms Now Use:
+  Layout: ZStack with floating panels
+  Inspector: Right-side floating panel
+  Toolbar: Top floating glass bar
+  Status: Bottom floating info bar
+  
+Platform Differences:
+  macOS:
+    - Mouse/trackpad gestures
+    - Keyboard shortcuts
+    - Hover states
+    
+  iOS:
+    - Touch gestures
+    - Haptic feedback
+    - Timer-based updates
+    
+  tvOS:
+    - Remote control
+    - Focus engine
+    - Simplified features
 
-iPhone (Compact Width):
-  Layout: NavigationStack
-  Inspector: Sheet overlay
-  Toolbar: Bottom floating
-  Gestures: Touch
-
-Works automatically. No special code.
+No more adaptive complexity!
 ```
 
 ### Input Mapping
@@ -198,6 +227,7 @@ Works automatically. No special code.
 | Click + Drag | Environment | Orbit camera ✅ |
 | Right Click + Drag | Any | Pan camera ✅ |
 | Scroll | Any | Zoom ✅ |
+| Pinch (trackpad) | Any | Zoom ✅ |
 | Click | Entity | Select ✅ |
 | Space | Any | Toggle mode ✅ |
 
@@ -207,8 +237,30 @@ Works automatically. No special code.
 | One Finger Drag | Environment | Orbit ✅ |
 | Two Finger Drag | Any | Pan ✅ |
 | Pinch | Any | Zoom ✅ |
-| Tap | Entity | Select ✅ |
+| Tap | Entity | Cycle selection ✅ |
 | Long Press | Entity | Context menu ✅ |
+
+### iOS-Specific Navigation Fix
+```yaml
+Problem Solved:
+  - SwiftUI publishing errors during updates
+  
+Solution:
+  - Timer-based updates (60fps)
+  - Avoids view update conflicts
+  - Smooth interaction maintained
+  
+Code:
+  #if os(iOS)
+  Timer.scheduledTimer(withTimeInterval: 1/60) {
+    Task { @MainActor in
+      updateEntities()
+      updateCamera()
+      updateGizmo()
+    }
+  }
+  #endif
+```
 
 ## State Management
 
@@ -224,8 +276,8 @@ Works automatically. No special code.
 // ViewportState owns rendering (RealityKit.Entity)
 let rootEntity = RealityKit.Entity()
 
-// The bridge connects them
-entity.realityEntity  // Links wrapper to rendering
+// ContentView owns UI state
+@State private var showInspector = true  // Floating panel visibility
 ```
 
 ### Navigation State
@@ -235,41 +287,45 @@ Current Implementation:
   camera_state: distance, azimuth, elevation ✅
   selection: single entity ✅
   gizmo: visible when selected ✅
+  inspector: show/hide (right side) ✅
+  toolbar: always visible (top) ✅
 
 Not Built (YAGNI):
   ⏳ Multi-selection UI
   ⏳ Selection groups
   ⏳ Navigation history
   ⏳ Saved views
+  ⏳ Dockable panels
 ```
 
 ## Navigation Flows
 
 ### Creating an Entity
 ```
-1. User: Clicks Add → Light
-2. System: Creates LightEntity (wrapper)
+1. User: Clicks + in toolbar → Selects type
+2. System: Creates Entity wrapper
 3. System: Adds to SceneManager
 4. Bridge: wrapper.realityEntity → ViewportState
-5. User: Sees light, can select it
+5. View: Entity appears in viewport
+6. Inspector: Updates outliner
 ```
 
 ### Selecting an Entity
 ```
-1. User: Clicks in viewport
-2. Hit Test: Returns RealityKit.Entity
-3. Find Wrapper: SceneManager lookup
-4. Update Selection: SelectionManager
-5. Show Gizmo: At entity position
+1. User: Taps/clicks in viewport (Entity mode)
+2. System: Cycles to next entity (iOS) or hit test (macOS)
+3. Update: SelectionManager notified
+4. Gizmo: Appears at entity position
+5. Inspector: Shows properties
 ```
 
-### Transforming an Entity
+### Toggling Inspector
 ```
-1. User: Drags gizmo axis
-2. Gizmo: Updates position
-3. Wrapper: entity.position updates
-4. Bridge: Syncs to realityEntity
-5. Render: ViewportState updates
+1. User: Clicks sidebar icon in toolbar
+2. Animation: Inspector slides in/out from right
+3. State: showInspector toggles
+4. Viewport: Adjusts to fill space
+5. Memory: State persists in session
 ```
 
 ## Error Handling
@@ -285,6 +341,10 @@ Project Load Fails:
   Show: "Couldn't open project"
   Action: Keep current scene
   No data loss
+
+iOS Publishing Error:
+  Fixed: Timer-based updates
+  No user-facing errors
 
 That's it. Simple errors, simple recovery.
 ```
@@ -313,6 +373,8 @@ Current Performance:
   Selection: < 16ms
   Gizmo update: Real-time
   Scene load: < 1 second
+  Inspector toggle: Smooth animation
+  iOS updates: Consistent 60fps
 
 No performance issues = No complex optimizations needed
 ```
@@ -327,6 +389,9 @@ Not Built:
   ❌ Asset browser (just import)
   ❌ Layer system (not needed)
   ❌ Tool palettes (two modes enough)
+  ❌ Dockable panels (floating works great)
+  ❌ Multiple viewports (one is enough)
+  ❌ Split views (edge-to-edge better)
 
 Why: YAGNI - Add when games need them
 ```
@@ -334,53 +399,57 @@ Why: YAGNI - Add when games need them
 ### Future Navigation (If Needed)
 
 ```swift
-// TODAY: Not needed
-// FUTURE: Add if users request
+// TODAY: Beautiful floating UI
+// FUTURE: Add complexity only if requested
 
-// Example: Multi-select (when needed)
-extension SelectionManager {
-    var multiSelection: [Entity] = []  // Add later
+// Example: Docking (if users really want it)
+extension Inspector {
+    var dockingSide: DockSide = .floating  // Add later
 }
 
-// Example: Bookmarks (when needed)
+// Example: Multiple views (if needed)
 extension ViewportState {
-    var savedViews: [CameraState] = []  // Add later
+    var additionalViews: [ViewportView] = []  // Add later
 }
 ```
 
 ## Navigation Best Practices
 
-### DO: Keep It Simple
+### DO: Embrace Simplicity
 ```swift
-// Good - Direct navigation
-func selectEntity(_ entity: Entity) {
-    selectionManager.selectedEntity = entity
+// Good - Direct navigation with floating UI
+ZStack {
+    viewport
+    toolbar
+    inspector
 }
 
-// Over-engineered - Don't do this yet
-func selectEntity(_ entity: Entity, 
-                  mode: SelectionMode,
-                  options: SelectionOptions,
-                  animation: AnimationStyle) { }
+// Over-engineered - Don't do this
+NavigationSplitView {
+    // Complex adaptive layouts
+}
 ```
 
-### DO: Use The Bridge
+### DO: Keep Floating UI Consistent
 ```swift
-// Wrapper for UI/logic
-let entity = Entity()
+// Good - Consistent styling
+.background(.ultraThinMaterial)
+.clipShape(RoundedRectangle(cornerRadius: 12))
+.shadow(color: .black.opacity(0.2), radius: 10)
+.padding(20)
 
-// Bridge for rendering
-viewportState.rootEntity.addChild(entity.realityEntity)
-
-// Never mix them in navigation
+// Bad - Mixed styles
+.background(.regularMaterial)  // Different material
+.cornerRadius(8)  // Different radius
 ```
 
-### DON'T: Build Navigation for Nonexistent Features
+### DON'T: Add Navigation Complexity
 ```swift
 // Don't build navigation for:
 - Features you haven't built
-- Workflows users haven't requested
-- Optimizations you don't need
+- Workflows users haven't requested  
+- Multiple UI paradigms
+- Platform-specific layouts (unless necessary)
 ```
 
 ## Platform-Specific Notes
@@ -388,14 +457,15 @@ viewportState.rootEntity.addChild(entity.realityEntity)
 ### macOS
 - Menu bar works ✅
 - Keyboard shortcuts work ✅
-- No touch bar (deprecated)
-- No complex panels (YAGNI)
+- Floating UI beautiful ✅
+- No docking needed (YAGNI)
 
 ### iOS/iPadOS
 - Touch works ✅
 - Gestures work ✅
 - Haptics work ✅
-- No pencil-specific features (YAGNI)
+- Timer-based updates ✅
+- Same floating UI as Mac ✅
 
 ### tvOS
 - Basic navigation ✅
@@ -403,19 +473,39 @@ viewportState.rootEntity.addChild(entity.realityEntity)
 - Simplified features
 - Remote control works
 
+## Visual Hierarchy
+
+```yaml
+Layer Order (back to front):
+  1. Metal Sky (background)
+  2. Metal Grid
+  3. RealityKit Viewport
+  4. Floating UI Elements
+     - Toolbar (top)
+     - Inspector (right)
+     - Status (bottom)
+
+Glass Effect Stack:
+  - .ultraThinMaterial (consistent)
+  - 12pt corner radius (everywhere)
+  - Subtle shadows (depth)
+  - 20pt padding (spacing)
+```
+
 ## See Also
-- **Architecture.md** - Overall navigation philosophy
-- **EntitySystem.md** - What entities can do
-- **ViewportState.md** - How rendering connects
-- **Gestures.md** - Input handling details
+- **Implementation.md** - Floating UI details (v4.0)
+- **Visual.md** - Glass morphism design
+- **Architecture.md** - Overall philosophy
+- **ViewportState.md** - Rendering connection
 
 ## Summary
 
-Navigation v4.0 is **intentionally simple**:
-- ✅ **Two modes** - Environment and Entity (enough for now)
+Navigation v5.0 is **beautifully simple**:
+- ✅ **Edge-to-edge viewport** - Maximum space for 3D
+- ✅ **Floating glass UI** - Modern, consistent, beautiful
+- ✅ **Single architecture** - ZStack for all platforms
+- ✅ **Two modes** - Environment and Entity (enough)
 - ✅ **Clear flows** - Create, select, transform, save
-- ✅ **Adaptive UI** - Works on all platforms automatically
-- ✅ **Entity-based** - Your wrappers for logic, RealityKit for rendering
 - ✅ **Room to grow** - Add navigation as features emerge
 
-**Philosophy**: Navigate what exists. Don't over-engineer. Ship today.
+**Philosophy**: Simple navigation for a simple editor. Float above complexity.

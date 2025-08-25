@@ -1,11 +1,11 @@
 # RealityViewport Gesture & Input Documentation
 
 **Module**: GESTURES.md  
-**Version**: 3.0  
+**Version**: 3.1  
 **Architecture**: Simplified Input Handling  
 **Philosophy**: Handle what's needed, not what's possible  
 **Status**: Core Gestures Working  
-**Last Updated**: December 2024
+**Last Updated**: August 25 2025
 
 ## Gesture Philosophy
 
@@ -29,6 +29,26 @@ Entity Mode:
   Drag → Move entity (with gizmo)
   
 That's it. Ship it.
+```
+
+## Recent Updates (v3.1)
+
+### What Changed in August 2025
+```yaml
+Fixed:
+  ✅ iOS haptic feedback centralized
+  ✅ No more duplicate HapticStyle enums
+  ✅ Smooth gestures with timer-based updates
+
+Unchanged:
+  - Core gesture system still works great
+  - Two-mode system proven effective
+  - Platform input maps remain the same
+
+Impact on Gestures:
+  - iOS gestures now update via timer (60fps)
+  - No more SwiftUI publishing conflicts
+  - Haptics use shared HapticFeedback.swift
 ```
 
 ## Entity Type Disambiguation in Gestures
@@ -90,6 +110,15 @@ func handleTap(at location: CGPoint) {
 .onScroll { delta in
     cameraController.zoom(by: delta.y)
 }
+
+// Trackpad pinch zoom ✅ (NEW)
+.gesture(
+    MagnificationGesture()
+        .onChanged { value in
+            let scale = Float(1.0 / value)
+            viewportState.cameraDistance *= scale
+        }
+)
 ```
 
 **Not Built (YAGNI):**
@@ -101,7 +130,7 @@ func handleTap(at location: CGPoint) {
 ### iOS (What's Built)
 
 ```swift
-// WORKING TODAY
+// WORKING TODAY with timer-based updates
 // One finger drag ✅
 .gesture(
     DragGesture()
@@ -110,6 +139,7 @@ func handleTap(at location: CGPoint) {
             case .environment:
                 cameraController.orbit(by: value.translation)
             case .entity:
+                // On iOS, this now updates smoothly via timer
                 handleEntityDrag(value.translation)
             }
         }
@@ -135,6 +165,16 @@ func handleTap(at location: CGPoint) {
             cameraController.zoom(to: scale)
         }
 )
+```
+
+**iOS-Specific Note:**
+```yaml
+Update Mechanism:
+  - Gestures set state values
+  - Timer at 60fps reads state
+  - Updates happen in Task { @MainActor }
+  - No SwiftUI publishing conflicts
+  - Smooth, consistent interaction
 ```
 
 **Not Built (YAGNI):**
@@ -170,6 +210,27 @@ func hitTestEntity(at location: CGPoint) -> Entity? {
 ```
 
 **That's it.** No complex hit test caching. No multi-layer testing. It works.
+
+### iOS Selection Cycling (Alternative)
+```swift
+// On iOS, tap cycles through entities instead of hit testing
+func cycleSelection() {
+    let entities = sceneManager.entities
+    guard !entities.isEmpty else { return }
+    
+    if let current = selectionManager.selectedEntity,
+       let index = entities.firstIndex(where: { $0.id == current.id }) {
+        let nextIndex = (index + 1) % entities.count
+        selectionManager.select(entities[nextIndex])
+    } else {
+        selectionManager.select(entities.first)
+    }
+    
+    #if os(iOS)
+    hapticFeedback(.light)  // Using shared utility
+    #endif
+}
+```
 
 ## Camera Control (Simple Math)
 
@@ -239,9 +300,11 @@ func handleGizmoDrag(axis: GizmoAxis, delta: CGSize) {
 }
 ```
 
+**Note:** Gizmo dragging needs smoothing (known issue), but works functionally.
+
 **Not Built (YAGNI):**
-- Rotation gizmos
-- Scale gizmos
+- Rotation gizmos (use realityEntity when needed)
+- Scale gizmos (use realityEntity when needed)
 - Snapping
 - Constraints
 - Multi-axis movement
@@ -259,6 +322,11 @@ func handleGizmoDrag(axis: GizmoAxis, delta: CGSize) {
         viewportState.interactionMode == .environment ? .entity : .environment
 }
 ```
+
+**Visual Feedback in Floating Toolbar:**
+- Mode buttons show active state
+- Different background color when active
+- Smooth transition animation (0.2s)
 
 **That's all.** No complex mode system. No tool palettes. Two modes work.
 
@@ -285,20 +353,32 @@ func handleGizmoDrag(axis: GizmoAxis, delta: CGSize) {
 
 ## Haptic Feedback (iOS)
 
-### What's Implemented
+### What's Implemented (Using Shared Utility)
 ```swift
 #if os(iOS)
+// Now using HapticFeedback.swift shared utility
+
 // Selection feedback ✅
 func entitySelected() {
-    UIImpactFeedbackGenerator(style: .light).impactOccurred()
+    hapticFeedback(.light)  // Shared function
 }
 
 // Mode switch feedback ✅
 func modeChanged() {
-    UISelectionFeedbackGenerator().selectionChanged()
+    hapticFeedback(.medium)  // Shared function
+}
+
+// Gizmo interaction ✅
+func gizmoMoved() {
+    hapticFeedback(.light)  // Shared function
 }
 #endif
 ```
+
+**Fixed in v3.1:**
+- No more duplicate HapticStyle enums
+- Centralized in HapticFeedback.swift
+- Consistent across all files
 
 **Not Built:**
 - Complex haptic patterns
@@ -346,8 +426,23 @@ Current Performance:
   Hit test: < 5ms ✅
   Gesture response: < 16ms ✅
   Mode switch: Instant ✅
+  iOS updates: 60fps via timer ✅
   
 No performance issues = No complex optimizations
+```
+
+### Platform-Specific Performance
+```yaml
+macOS:
+  - On-demand updates
+  - Immediate gesture response
+  - Low CPU usage when idle
+
+iOS:
+  - Timer-based updates (60fps)
+  - Smooth gesture tracking
+  - No publishing conflicts
+  - Consistent frame rate
 ```
 
 ### Not Built (YAGNI)
@@ -361,46 +456,20 @@ No performance issues = No complex optimizations
 // Why? Because it works fine without them.
 ```
 
-## Entity-Specific Gestures
+## Interaction with Floating UI
 
-### What's Built
-```swift
-// Basic selection and movement
-func handleEntityTap(_ entity: Entity) {
-    selectionManager.select(entity)
-}
+### Gestures Work Everywhere
+```yaml
+Edge-to-Edge Viewport:
+  - Full screen gesture area
+  - Floating panels don't block gestures
+  - Transparent to input when not hit
 
-func handleEntityDrag(_ entity: Entity, delta: CGSize) {
-    entity.position.x += Float(delta.width) * 0.01
-    entity.position.y -= Float(delta.height) * 0.01
-}
+Mode Indication:
+  - Floating toolbar shows active mode
+  - Visual feedback in buttons
+  - No gesture conflicts with UI
 ```
-
-### Not Built (YAGNI)
-- Double-tap to look through camera
-- Pinch to scale
-- Rotate gestures
-- Entity-specific gesture sets
-- Context-sensitive gestures
-
-*These sound cool. Build them when someone needs them.*
-
-## tvOS Input (Basic Support)
-
-### What Works
-```swift
-.onMoveCommand { direction in
-    // Simple navigation
-    switch direction {
-    case .left, .right:
-        cameraController.orbit(horizontal: direction == .left ? -1 : 1)
-    case .up, .down:
-        cameraController.orbit(vertical: direction == .up ? 1 : -1)
-    }
-}
-```
-
-**Status:** Basic support, limited testing. Good enough for alpha.
 
 ## Common Patterns
 
@@ -508,18 +577,19 @@ scroll → zoom
 ```
 
 ## See Also
-- **ViewportState.md** - How gestures affect rendering
-- **EntitySystem.md** - What entities can do
+- **ViewportState.md** - Platform-specific update strategies
+- **HapticFeedback.swift** - Shared haptic utility
+- **Implementation.md** - iOS performance fixes
 - **Navigation.md** - Overall interaction flow
-- **Architecture.md** - The philosophy behind simplicity
 
 ## Summary
 
-Gestures v3.0 is **intentionally basic**:
-- ✅ **Two modes** - Environment and Entity (enough)
+Gestures v3.1 is **intentionally basic and working great**:
+- ✅ **Two modes** - Environment and Entity (proven effective)
 - ✅ **Basic gestures** - Tap, drag, scroll, pinch (covers 90%)
 - ✅ **Clear bridge** - RealityKit.Entity → Entity wrapper
-- ✅ **Platform basics** - Works on Mac, iOS, tvOS
+- ✅ **Platform optimized** - Timer updates on iOS, on-demand on macOS
+- ✅ **Haptics fixed** - Centralized utility, no duplicates
 - ✅ **Room to grow** - Add gestures as features emerge
 
 **Philosophy**: Ship with gestures that work. Add complexity when users need it. Not before.

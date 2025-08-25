@@ -1,9 +1,9 @@
 # RealityViewport Visual Design System
 
-**Purpose**: Complete visual design system, UI specifications, and adaptive layouts  
-**Version**: 3.0  
-**Design Language**: Apple HIG + Metal Rendering + Adaptive UI  
-**Last Updated**: August 2025
+**Purpose**: Complete visual design system, UI specifications, and floating UI layouts  
+**Version**: 4.0  
+**Design Language**: Apple HIG + Metal Rendering + Floating Glass UI  
+**Last Updated**: August 25 2025
 
 ## Visual Architecture
 ```
@@ -14,327 +14,356 @@ RENDERING LAYERS (back→front):
 ├─[3] Billboard Icons (Camera-facing UI elements)
 ├─[4] Transform Gizmos (Manipulation tools)
 ├─[5] Viewport Overlays (Axis helper, stats)
-└─[6] SwiftUI Layer (Adaptive UI, inspector, toolbar)
+└─[6] Floating UI Layer (Glass panels, edge-to-edge)
 ```
 
-## Adaptive Layout System (WWDC25 Standard)
+## Floating UI Design System
 
-### Layout Strategy
+### Core Principles
+```yaml
+philosophy:
+  - Edge-to-edge viewport maximizes 3D space
+  - Floating glass panels preserve context
+  - Consistent styling across all platforms
+  - No navigation chrome or wasted space
+
+visual_language:
+  material: .ultraThinMaterial
+  corner_radius: 12pt
+  shadow: color: .black.opacity(0.2), radius: 10
+  padding: 20pt from screen edges
+  animation: .easeInOut(duration: 0.25)
+```
+
+### Layout Architecture
 ```swift
-// Single ContentView adapts to all contexts
-NavigationSplitView (Regular: iPad/Mac)
-├─ Sidebar: Inspector (collapsible)
-└─ Detail: Viewport + Toolbar
-
-NavigationStack (Compact: iPhone)
-├─ Main: Viewport
-├─ Toolbar: Bottom floating
-└─ Inspector: Sheet/Overlay
+// Single ZStack for all platforms (simplified from v3.0)
+ZStack {
+    // Full-screen viewport
+    ViewportStack
+        .ignoresSafeArea()
+    
+    // Floating overlays
+    VStack {
+        // Top toolbar
+        ViewportToolbar()
+            .floatingPanel()
+        Spacer()
+        // Bottom status
+        StatusBar()
+            .floatingPanel()
+    }
+    
+    HStack {
+        Spacer()
+        // Right inspector
+        if showInspector {
+            Inspector()
+                .floatingPanel()
+        }
+    }
+}
 ```
 
-### Size Class Breakpoints
-| Class | Width | Platform | Layout |
-|-------|-------|----------|--------|
-| **Compact** | < 600pt | iPhone, iPad Split | Stack layout, bottom toolbar |
-| **Regular** | ≥ 600pt | iPad, Mac | Split view, inline inspector |
-| **tvOS** | Full | Apple TV | Focus-based, simplified |
-
-### Adaptive Components
-
-#### Toolbar Adaptation
+### Floating Panel Specifications
 ```yaml
-regular_layout:
-  position: top_leading_overlay
-  style: bordered_prominent
-  spacing: 12pt
-  shows_labels: true
-
-compact_layout:
-  position: bottom_floating
-  style: material_background
-  spacing: 8pt
-  shows_labels: false
-  padding: safe_area + 8pt
+standard_panel:
+  background: .ultraThinMaterial
+  corner_radius: 12pt
+  shadow:
+    color: .black.opacity(0.2)
+    radius: 10pt
+    x: 0 (toolbar/status), -2 (inspector)
+    y: 2 (toolbar), -2 (status), 0 (inspector)
+  
+toolbar:
+  position: top center
+  width: ~85% of screen
+  height: 44pt
+  padding: horizontal: 20pt, top: 12pt
+  content: centered horizontally
+  
+inspector:
+  position: right edge
+  width: 320pt (macOS), 280pt (iOS)
+  height: flexible (max screen - 100pt)
+  padding: right: 20pt, vertical: 70pt
+  animation: slide + fade from right
+  
+status_bar:
+  position: bottom center
+  width: ~85% of screen
+  height: auto (content-sized)
+  padding: horizontal: 20pt, bottom: 12pt
+  content: project info left, stats right
 ```
 
-#### Inspector Adaptation
+## Visual Hierarchy Update
+
+### Before (v3.0) vs After (v4.0)
 ```yaml
-regular_layout:
-  style: NavigationSplitView.sidebar
-  width: 320pt
-  resizable: true (280-400pt)
-  position: leading_side
-
-compact_layout:
-  style: .inspector() modifier
-  presentation: slide_over
-  width: 80% of screen
-  dismissable: true
-```
-
-## Metal Rendering Visual Specs
-
-### Sky Gradient System (Day/Night Cycle)
-```yaml
-dawn:
-  top: rgb(102, 128, 179)    # Soft blue-gray
-  bottom: rgb(230, 153, 102)  # Warm orange
-  duration: 0.25 cycle
-
-day:
-  top: rgb(77, 153, 230)      # Sky blue
-  bottom: rgb(179, 217, 255)  # Light blue
-  duration: 0.25 cycle
-
-dusk:
-  top: rgb(77, 51, 128)       # Purple
-  bottom: rgb(204, 102, 77)   # Orange-red
-  duration: 0.25 cycle
-
-night:
-  top: rgb(13, 13, 38)        # Dark blue
-  bottom: rgb(26, 26, 64)     # Midnight blue
-  duration: 0.25 cycle
-
-transition: smooth_interpolation
-cycle_time: 120_seconds_default
-```
-
-### Grid Rendering
-```yaml
-style: metal_shader_based
-lines:
-  major:
-    color: rgba(0.3, 0.3, 0.3, 0.5)
-    width: 1.0pt
-    spacing: 1.0_unit
-  minor:
-    color: rgba(0.2, 0.2, 0.2, 0.3)
-    width: 0.5pt
-    spacing: 0.1_unit
-axes:
-  x: red (1.0, 0.0, 0.0, 1.0)
-  y: green (0.0, 1.0, 0.0, 1.0)
-  z: blue (0.0, 0.0, 1.0, 1.0)
-  width: 2.0pt
-fade:
-  start_distance: 5.0_units
-  end_distance: 20.0_units
-  function: smooth_step
+Before (Complex Adaptive):
+  - NavigationSplitView for iPad/Mac
+  - NavigationStack for iPhone
+  - Different layouts per platform
+  - Inspector in sidebar (left)
+  - Toolbar embedded in navigation
+  - Multiple code paths
+  
+After (Unified Floating):
+  - Single ZStack architecture
+  - Same layout all platforms
+  - Edge-to-edge viewport
+  - Floating inspector (right)
+  - Floating toolbar (top)
+  - One code path
+  
+Visual Benefits:
+  - More viewport space (+15-20%)
+  - Consistent experience
+  - Modern glass aesthetic
+  - Better depth perception
+  - Cleaner visual hierarchy
 ```
 
 ## Updated Color System
 
-### Core Palette
+### Glass Material Palette
+| Element | Material | Opacity | Usage |
+|---------|----------|---------|--------|
+| **Toolbar** | .ultraThinMaterial | System | Top floating bar |
+| **Inspector** | .regularMaterial | System | Right panel background |
+| **Status** | .ultraThinMaterial | System | Bottom info bar |
+| **Viewport** | Color.clear | 100% | Full transparency |
+
+### Core Palette (Unchanged)
 | Element | Light Mode | Dark Mode | Metal/Hex | Usage |
 |---------|------------|-----------|-----------|--------|
-| **Sky** | Dynamic | Dynamic | See cycle above | Background gradient |
+| **Sky** | Dynamic | Dynamic | See cycle | Background gradient |
 | **Grid** | 0.3 alpha gray | 0.3 alpha gray | #4C4C4C80 | Reference grid |
-| **Grid Fade** | Distance-based | Distance-based | Shader calc | Depth cue |
 | **Selection** | accentColor | accentColor | System | Selected objects |
 | **Gizmo X** | .red | .red | #FF0000 | X-axis |
 | **Gizmo Y** | .green | .green | #00FF00 | Y-axis |
 | **Gizmo Z** | .blue | .blue | #0000FF | Z-axis |
-| **Material** | .regularMaterial | .regularMaterial | System | UI panels |
-
-### Entity Type Colors
-| Type | Icon Color | Selection Tint |
-|------|------------|----------------|
-| Camera | .blue | .blue.opacity(0.2) |
-| Light | .yellow | .yellow.opacity(0.2) |
-| Model | .purple | .purple.opacity(0.2) |
-| Empty | .gray | .gray.opacity(0.2) |
 
 ## Component Specifications
 
-### Unified Viewport Toolbar
+### Floating Viewport Toolbar
 ```yaml
-adaptive_behavior:
-  compact:
-    container: floating_capsule
-    position: bottom - 8pt
-    background: .regularMaterial
-    corner_radius: 12pt
-  regular:
-    container: inline_overlay
-    position: top_leading + 16pt
-    background: .regularMaterial
-    corner_radius: 8pt
-
+container:
+  type: floating_glass_bar
+  position: top center
+  width: fill - 40pt (20pt each side)
+  height: 44pt
+  
+visual_style:
+  background: .ultraThinMaterial
+  corner_radius: 12pt
+  shadow: (0, 2, 10, 0.2)
+  border: none
+  
+layout:
+  alignment: horizontal center
+  spacing: 10pt between groups
+  dividers: 20pt height, 1pt width
+  padding: 6pt internal
+  
 controls:
-  mode_selector:
-    type: segmented_control
-    options: ["Environment", "Entity"]
-    width: adaptive
-  
-  gizmo_tools:
-    type: button_group
-    items: [move, rotate, scale]
-    style: bordered_when_active
+  project_management:
+    [folder, save, export]
+    size: 26pt buttons
     
-  viewport_actions:
-    type: menu
-    icon: plus.circle.fill
-    items: [add_camera, add_light, add_primitive]
+  entity_creation:
+    [+ menu]
+    size: 26pt button
+    
+  interaction_mode:
+    [environment, entity]
+    style: segmented
+    background: .gray.opacity(0.1)
+    
+  camera_mode:
+    [orbit, fly, pan]
+    style: segmented
+    
+  inspector_toggle:
+    [sidebar.right]
+    position: trailing
 ```
 
-### Transform Gizmo (Metal + RealityKit Hybrid)
+### Floating Inspector Panel
 ```yaml
-rendering: RealityKit entities
-scaling: screen_space_constant
-size:
-  base: 0.1 * camera_distance
-  min: 60pt_screen_space
-  max: 200pt_screen_space
+container:
+  type: floating_glass_panel
+  position: right edge
+  width: 320pt (macOS), 280pt (iOS)
+  max_height: screen - 100pt
   
-interaction:
-  hover:
-    scale: 1.1x
-    brightness: 1.2x
-    cursor: platform_specific
+visual_style:
+  background: .regularMaterial
+  corner_radius: 12pt
+  shadow: (-2, 0, 10, 0.2)
   
-  drag:
-    constraint_display: true
-    axis_highlight: true
-    value_overlay: true
-    haptic: light_impact (iOS)
-```
-
-### Inspector Panel (Adaptive)
-```yaml
+animation:
+  show: slide(from: .trailing) + opacity
+  hide: slide(to: .trailing) + opacity
+  duration: 0.25s
+  curve: .easeInOut
+  
 structure:
   header:
-    title: "Inspector"
-    stats: entity_count
-    close_button: trailing
+    tabs: [Outliner, Properties]
+    close_button: trailing X
+    height: 36pt
     
-  outliner:
-    style: hierarchical_list
-    icons: sf_symbols
-    selection: follows_scene
+  content:
+    outliner:
+      style: hierarchical_list
+      icons: sf_symbols
+      
+    properties:
+      style: grouped_form
+      resizable: true
+      resize_handle: top edge
+```
+
+### Floating Status Bar
+```yaml
+container:
+  type: floating_glass_bar
+  position: bottom center
+  width: fill - 40pt
+  height: auto (28-32pt typical)
+  
+visual_style:
+  background: .ultraThinMaterial
+  corner_radius: 12pt
+  shadow: (0, -2, 10, 0.2)
+  
+content:
+  left:
+    project_name: .caption
+    modified_indicator: if changed
     
-  properties:
-    style: grouped_form
-    resize_handle: top_edge
-    min_height: 100pt
-    max_height: 400pt
-    
-responsive:
-  regular:
-    width: 320pt
-    position: NavigationSplitView.sidebar
-    
-  compact:
-    width: 80%_screen
-    position: sheet_overlay
-    drag_to_dismiss: true
+  right:
+    statistics:
+      - entity_count
+      - light_count
+      - camera_count
+    style: .caption2
+    color: .secondary
 ```
 
 ## Platform-Specific Refinements
 
 ### macOS
 ```yaml
-window:
-  min_size: 800x600
-  style: standard_window
+floating_ui:
+  inspector_width: 320pt
+  toolbar_height: 44pt
+  button_size: 26pt
   
 interactions:
   hover_effects: enabled
-  context_menus: right_click
-  keyboard_shortcuts: visible
   cursor_changes: true
+  trackpad_gestures: pinch zoom
   
-toolbar:
-  style: unified_compact
-  customizable: false
+performance:
+  update_strategy: on_demand
+  uses_needsUpdate: true
 ```
 
 ### iOS/iPadOS
 ```yaml
-safe_areas: respected
-gestures:
-  pinch_zoom: viewport_camera
-  two_finger_drag: pan_camera
-  long_press: context_menu
+floating_ui:
+  inspector_width: 280pt
+  toolbar_height: 44pt
+  button_size: 32pt (compact)
   
-haptics:
-  selection: light_impact
-  mode_change: selection_changed
-  error: notification_error
+interactions:
+  touch_gestures: all enabled
+  haptic_feedback: light/medium
+  safe_area_insets: respected
   
-presentation:
-  inspector: slide_over
-  sheets: medium_large_detents
+performance:
+  update_strategy: timer_based
+  timer_rate: 60fps
+  avoids_publishing_conflicts: true
 ```
 
 ### tvOS
 ```yaml
-focus_engine: enabled
-controls:
-  remote_swipe: camera_orbit
-  play_pause: toggle_selection
-  menu: back_navigation
-  
-simplifications:
-  toolbar: essential_only
+floating_ui:
+  simplified: true
   inspector: read_only
-  gizmos: larger_targets
+  focus_indicators: enhanced
+  
+adaptations:
+  toolbar: essential_only
+  no_floating_panels: true
+  control_hints: visible
 ```
 
-## Visual Effects & Materials
+## Visual Effects & Glass Morphism
 
-### SwiftUI Materials
+### Material Hierarchy
 ```yaml
-panels:
-  primary: .regularMaterial
-  secondary: .thinMaterial
-  overlay: .ultraThinMaterial
+depth_levels:
+  0: viewport (transparent)
+  1: floating_panels (.ultraThinMaterial)
+  2: inspector_content (.regularMaterial)
+  3: modal_sheets (.thickMaterial)
   
-backgrounds:
-  viewport: Color.clear  # Shows Metal layers
-  inspector: .grouped
-  toolbar: .regularMaterial
+glass_effects:
+  blur: system_managed
+  vibrancy: automatic
+  transparency: follows_system
+  
+shadows:
+  standard: (0, 2, 10, 0.2)
+  inspector: (-2, 0, 10, 0.2)
+  status: (0, -2, 10, 0.2)
 ```
 
-### Metal Shader Effects
-```yaml
-sky_gradient:
-  type: vertex_fragment_shader
-  blend: smooth_interpolation
-  update: per_frame
-  
-grid_fade:
-  type: fragment_shader
-  function: smoothstep(5.0, 20.0, distance)
-  alpha: distance_based
-  
-transparency:
-  order: back_to_front
-  blend: source_over
+### Consistent Styling
+```swift
+// Reusable floating panel modifier
+extension View {
+    func floatingPanel() -> some View {
+        self
+            .background(.ultraThinMaterial)
+            .clipShape(RoundedRectangle(cornerRadius: 12))
+            .shadow(color: .black.opacity(0.2), radius: 10)
+    }
+}
 ```
 
 ## Animation Specifications
 
-### Standard Transitions
+### Floating UI Transitions
 ```yaml
 inspector_toggle:
-  duration: 0.3s
-  curve: spring(response: 0.3)
-  
-selection_change:
-  duration: 0.2s
-  curve: easeInOut
-  
-gizmo_hover:
-  duration: 0.15s
-  scale: 1.1x
-  
-mode_switch:
+  type: slide + opacity
   duration: 0.25s
-  type: opacity_transition
+  curve: .easeInOut
+  direction: horizontal (from right)
+  
+toolbar_appearance:
+  type: opacity + scale
+  duration: 0.3s
+  initial_scale: 0.95
+  
+panel_resize:
+  type: continuous
+  constraint: maintain aspect
+  
+hover_states:
+  scale: 1.02
+  duration: 0.15s
+  buttons_only: true
 ```
 
-### Day/Night Cycle
+### Day/Night Cycle (Unchanged)
 ```yaml
 phase_transition:
   duration: continuous
@@ -345,108 +374,139 @@ phase_transition:
 
 ## Typography & Icons
 
-### Text Hierarchy
-| Level | SwiftUI Style | Size | Weight | Usage |
-|-------|--------------|------|--------|-------|
-| Title | .headline | System | .medium | Panel headers |
-| Body | .body | System | .regular | General text |
-| Label | .caption | System | .regular | Property labels |
-| Value | .body | System | .monospaced | Numbers |
+### Floating UI Text Styles
+| Element | Style | Size | Weight | Color |
+|---------|-------|------|--------|-------|
+| Toolbar | .body | 13pt | .medium | .primary |
+| Inspector Title | .headline | 13pt | .medium | .primary |
+| Inspector Tab | .body | 13pt | .regular | .secondary |
+| Status Info | .caption | 11pt | .regular | .secondary |
+| Button Label | .caption2 | 10pt | .regular | .secondary |
 
-### SF Symbols Usage
-| Category | Symbol | Size | Rendering |
-|----------|--------|------|-----------|
-| Camera | camera.fill | 20pt | hierarchical |
-| Light | light.max | 20pt | multicolor |
-| Model | cube.fill | 20pt | monochrome |
-| Transform | move.3d | 16pt | monochrome |
+### Icon Specifications
+```yaml
+toolbar_icons:
+  size: 16pt (regular), 20pt (compact)
+  weight: .medium
+  rendering: monochrome
+  
+inspector_icons:
+  size: 14pt
+  weight: .regular
+  rendering: hierarchical
+  
+status_icons:
+  size: 12pt
+  weight: .regular
+  color: .secondary
+```
 
 ## Accessibility
 
-### Dynamic Type
+### Floating UI Adaptations
 ```yaml
-supported: true
-minimum_size: .small
-maximum_size: .xxxLarge
-layout_adjustments: automatic
-```
-
-### High Contrast
-```yaml
-grid_opacity: increased to 0.6
-selection_outline: 2pt width
-gizmo_colors: high_contrast_variants
-```
-
-### Reduce Motion
-```yaml
-transitions: cross_fade_only
-animations: disabled
-day_night_cycle: manual_control
+reduce_transparency:
+  panels: .regularMaterial (more opaque)
+  maintains_hierarchy: true
+  
+increase_contrast:
+  panel_borders: 1pt .separator
+  shadow_intensity: increased
+  
+voice_over:
+  panel_descriptions: complete
+  navigation_hints: provided
+  
+dynamic_type:
+  panels_resize: true
+  minimum_width: adjusted
+  scroll_enabled: when needed
 ```
 
 ## Performance Visual Targets
 
-### Frame Rate
+### Frame Rate with Floating UI
 ```yaml
 target: 60fps
 minimum: 30fps
-measurement: Metal HUD
 
 budget:
   sky: 0.5ms
   grid: 0.3ms
   entities: 8-12ms
-  ui: 2ms
+  floating_ui: 0.5ms (negligible)
+  swiftui: 2ms
   total: <16.67ms
+  
+iOS_specific:
+  timer_updates: 60fps consistent
+  no_publishing_conflicts: true
+  smooth_animations: true
 ```
 
 ### Visual Quality Settings
 ```yaml
 high_quality:
-  grid_divisions: 20
-  shadow_resolution: 2048
-  antialiasing: 4x
+  panel_blur: full
+  shadows: all enabled
+  animations: full
   
 balanced:
-  grid_divisions: 10
-  shadow_resolution: 1024
-  antialiasing: 2x
+  panel_blur: reduced
+  shadows: simplified
+  animations: reduced
   
 performance:
-  grid_divisions: 5
-  shadow_resolution: 512
-  antialiasing: none
+  panel_blur: minimal
+  shadows: none
+  animations: cross_fade_only
 ```
 
 ## Visual Debug Overlays
 
-### Debug Mode
+### Debug Mode with Floating UI
 ```yaml
-fps_counter:
-  position: top_right
-  style: monospaced
+layout_guides:
+  shows: panel boundaries
+  color: .purple
+  style: dashed lines
   
-entity_bounds:
-  color: yellow
-  style: wireframe
+touch_indicators:
+  shows: touch points
+  style: circles
+  fade_duration: 0.5s
   
-selection_info:
-  shows: name, type, transform
-  position: above_gizmo
+performance_overlay:
+  position: top_right (below toolbar)
+  shows: fps, frame_time
+  background: .black.opacity(0.5)
+```
+
+## Design Rationale
+
+### Why Floating UI?
+```yaml
+benefits:
+  - Maximum viewport space
+  - Context preservation (see through panels)
+  - Modern aesthetic (iOS 16+ style)
+  - Consistent cross-platform
+  - Simpler codebase
   
-performance_hud:
-  shows: draw_calls, triangles, frame_time
-  position: bottom_right
+tradeoffs:
+  - No docking (not needed)
+  - No multi-window (YAGNI)
+  - Fixed panel sizes (intentional)
 ```
 
 ## Summary
 
-The visual system combines:
-- ✅ **Metal rendering** for GPU-accelerated backgrounds and grids
-- ✅ **Adaptive layouts** following WWDC25 best practices
-- ✅ **Platform optimizations** for macOS, iOS, and tvOS
-- ✅ **Dynamic theming** with day/night cycle
-- ✅ **Consistent design language** across all platforms
+The visual system v4.0 delivers:
+- ✅ **Edge-to-edge viewport** maximizing 3D workspace
+- ✅ **Floating glass panels** with consistent styling
+- ✅ **Unified design** across all platforms
+- ✅ **Modern aesthetic** following latest Apple HIG
+- ✅ **60fps performance** maintained with UI overlays
+- ✅ **Simplified codebase** with single layout path
 
-This unified visual system ensures professional appearance while maintaining 60fps performance across all supported devices.
+This floating UI system provides a professional, modern appearance while maintaining the simplicity and performance requirements of the RealityViewport alpha.
