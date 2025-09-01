@@ -1,10 +1,10 @@
 # Metal Rendering Pipeline
 
 **Module**: METAL_RENDERING.md  
-**Version**: 2.0  
+**Version**: 2.1  
 **Created**: August 2025  
-**Updated**: December 2024  
-**Status**: Phase 1 - Grid Sync Issues Remaining (98% Complete)  
+**Updated**: September 2025  
+**Status**: Phase 1 - Critical Sync Issue Identified (98% Complete)  
 **Architecture**: Metal + RealityKit Hybrid
 
 ## Overview
@@ -16,155 +16,159 @@ RealityViewport implements a sophisticated Metal rendering pipeline that works a
 ### The Problem (2% Remaining)
 ```yaml
 Current Issues:
-  - Minor lag still present in some scenarios
-  - Grid occasionally desyncs from camera during rapid movement
-  - Frame-perfect synchronization not achieved
+  - Grid COMPLETELY out of sync on initial application launch
+  - Close/reopen window fixes sync perfectly
+  - Minimize/restore does NOT fix sync
+  - Frame-perfect synchronization not achieved on startup
   
 Impact:
   - Visual inconsistency during camera manipulation
   - Professional polish lacking
   - Phase 1 cannot be marked complete until resolved
+  
+Critical Discovery:
+  - The issue is NOT in the update mechanism
+  - The issue is in initial Metal/SwiftUI/RealityKit synchronization
+  - Close/reopen establishes something that initial launch doesn't
 ```
 
-### Synchronization Fix Attempted (Partial Success)
+### Detailed Symptom Analysis (December 2024)
+
+```yaml
+On Initial Launch (Build & Run):
+  - Metal grid and SwiftUI/RealityKit are NOT synchronized
+  - Moving camera causes grid and entities to separate
+  - Creating primitives shows them with SwiftUI grid, not Metal grid
+  - Issue persists regardless of user actions
+
+After Close (Red Button) and Reopen:
+  - Everything syncs PERFECTLY
+  - Grid and entities move as one unit
+  - Sync maintained during all operations
+  - Works exactly as intended
+
+After Minimize (Yellow Button) and Restore:
+  - Sync issue REMAINS
+  - State identical to before minimize
+  - Does NOT fix the problem
+  
+Platform Behavior:
+  - macOS: Close/reopen fixes, minimize doesn't
+  - iOS: Similar behavior but can't close without quitting
+```
+
+## Attempted Solutions and Results (December 2024)
+
+### ❌ Failed Attempt 1: Direct Update Without Combine
+```swift
+// Removed Combine publishers, updated directly in updateUIView
+func updateNSView(_ view: MTKView, context: Context) {
+    context.coordinator.updateMatrixBuffer()
+    view.needsDisplay = true
+    view.draw()  // Force synchronous draw
+}
+```
+**Result**: Made it WORSE - added delays and still not synced  
+**Learning**: SwiftUI update cycle isn't the issue
+
+### ❌ Failed Attempt 2: Manual Drawing Mode
+```swift
+metalView.enableSetNeedsDisplay = true  // Manual mode
+metalView.isPaused = true  // Don't auto-draw
+// Manually trigger draws on state change
+```
+**Result**: Horrible - constant delays at all times  
+**Learning**: Metal needs continuous 60fps rendering
+
+### ❌ Failed Attempt 3: Force Layer Attachment
+```swift
+// Various attempts to force CAMetalLayer attachment
+metalView.layer?.contentsScale = window.backingScaleFactor
+metalView.isPaused = true; metalView.isPaused = false
+_ = metalView.currentDrawable  // Force drawable creation
+```
+**Result**: No improvement  
+**Learning**: Layer attachment isn't the root cause
+
+### ❌ Failed Attempt 4: Trigger State Change on Init
+```swift
+// Artificially change camera state after initialization
+DispatchQueue.main.async {
+    viewportState.cameraDistance += 0.001
+    viewportState.cameraDistance -= 0.001
+}
+```
+**Result**: Didn't fix startup sync  
+**Learning**: State change alone doesn't trigger the fix
+
+### ✅ What Actually Works
+```yaml
+Working Solution (Manual):
+  1. User launches application
+  2. User closes window (red button, NOT quit)
+  3. User reopens window from dock
+  4. Perfect sync achieved and maintained
+
+Key Observations:
+  - Original Combine + 60fps continuous rendering WORKS
+  - But ONLY after close/reopen cycle
+  - The update mechanism is CORRECT
+  - The initialization is WRONG
+```
+
+### Root Cause Hypothesis
+
+```yaml
+Close/Reopen Does Something That:
+  - Properly establishes Metal rendering context
+  - Synchronizes draw cycles between Metal and RealityKit
+  - Cannot be replicated by minimize/restore
+  - Cannot be replicated by our initialization attempts
+  - Likely involves window server or compositor state
+
+Possible Causes:
+  1. CAMetalLayer needs window server connection established
+  2. MTKView delegate timing not synchronized on first creation
+  3. RealityKit and Metal running on different display links initially
+  4. SwiftUI view hierarchy not fully established when Metal starts
+  5. macOS window compositor needs the close/reopen to sync layers
+```
+
+## Current Implementation (Partially Working)
 
 Located: `ViewportMetalGrid.swift`
 
 ```swift
-// Phase 1 improvement: Direct observation without throttling
-Publishers.CombineLatest3(
-    viewportState.$cameraDistance,
-    viewportState.$cameraAzimuth,
-    viewportState.$cameraElevation
-)
-.receive(on: RunLoop.main)
-.sink { [weak self] _ in
-    self?.updateMatrixBuffer()
-    self?.forceRedraw()
-}
-
-// Result: Reduced lag from 16ms to <1ms
-// BUT: Still not frame-perfect in all scenarios
-```
-
-### Root Cause Analysis
-
-```yaml
-Synchronization Chain:
-  1. User input (mouse/touch)
-  2. ViewportState camera properties update (@Published)
-  3. Combine publisher fires
-  4. Matrix buffer updates
-  5. Metal draw call
-  6. RealityKit update
-  
-Potential Desync Points:
-  - Combine publisher delay (even without throttle)
-  - RunLoop.main scheduling
-  - Metal/RealityKit update timing mismatch
-  - Platform differences (iOS timer vs macOS on-demand)
-```
-
-### Critical Code: ViewportMetalGrid
-
-```swift
-struct ViewportMetalGrid: UIViewRepresentable {
+// This implementation WORKS but only after close/reopen
+struct ViewportMetalGrid: PlatformViewRepresentable {
     @ObservedObject var viewportState: ViewportState
-    @StateObject private var gridRenderer = MetalGridRenderer()
     
-    func makeUIView(context: Context) -> MTKView {
-        let metalView = MTKView()
-        metalView.device = MTLCreateSystemDefaultDevice()
-        metalView.clearColor = MTLClearColor(red: 0, green: 0, blue: 0, alpha: 0)
-        metalView.isOpaque = false
-        metalView.delegate = gridRenderer
+    func setupView() -> MTKView {
+        metalView = MTKView(frame: .zero, device: device)
+        metalView.delegate = self
+        metalView.preferredFramesPerSecond = 60
+        metalView.enableSetNeedsDisplay = false  // Continuous rendering
+        metalView.isPaused = false
         
-        // CRITICAL: Setup camera observation
-        setupCameraObservation(context: context)
-        
-        return metalView
-    }
-    
-    private func setupCameraObservation(context: Context) {
-        // Direct observation - but still has minor lag
+        // Setup Combine observers (these work correctly)
         Publishers.CombineLatest3(
             viewportState.$cameraDistance,
             viewportState.$cameraAzimuth,
             viewportState.$cameraElevation
         )
-        .receive(on: RunLoop.main)  // Potential delay point
-        .sink { [weak gridRenderer] _ in
-            gridRenderer?.updateMatrixBuffer()
-            gridRenderer?.forceRedraw()
+        .receive(on: RunLoop.main)
+        .sink { [weak self] _ in
+            self?.updateMatrixBuffer()
         }
-        .store(in: &context.coordinator.cancellables)
+        
+        return metalView
     }
     
-    func updateUIView(_ metalView: MTKView, context: Context) {
-        // Manual matrix update - secondary sync mechanism
-        if let renderer = context.coordinator.renderer {
-            renderer.viewMatrix = calculateViewMatrix()
-            renderer.projectionMatrix = calculateProjectionMatrix()
-            
-            // Force immediate redraw
-            metalView.setNeedsDisplay()  // May not be immediate
-        }
+    func draw(in view: MTKView) {
+        updateMatrixBuffer()  // Update every frame
+        // ... render grid
     }
 }
-```
-
-### Matrix Calculation (Must Match RealityKit Exactly)
-
-```swift
-private func calculateViewMatrix() -> float4x4 {
-    // Must match ViewportState.computeCameraPosition() exactly
-    let cameraPos = viewportState.computeCameraPosition()
-    let target = viewportState.cameraTarget
-    let up = SIMD3<Float>(0, 1, 0)
-    
-    // Create look-at matrix matching RealityKit's camera
-    return float4x4.lookAt(
-        eye: cameraPos,
-        center: target,
-        up: up
-    )
-}
-
-private func calculateProjectionMatrix() -> float4x4 {
-    // Must match RealityKit's perspective projection
-    let aspect = Float(viewportState.viewportSize.width / viewportState.viewportSize.height)
-    let fov: Float = 60.0 * .pi / 180.0  // Must match RealityKit camera FOV
-    let near: Float = 0.1
-    let far: Float = 1000.0
-    
-    return float4x4.perspective(
-        fovY: fov,
-        aspect: aspect,
-        near: near,
-        far: far
-    )
-}
-```
-
-## Rendering Architecture (With Sync Points)
-
-```
-┌────────────────────────────────────────┐
-│          User Input                     │ ← Sync Point 1
-├────────────────────────────────────────┤
-│     ViewportState (Camera Update)      │ ← Sync Point 2
-├────────────────────────────────────────┤
-│   @Published Properties Fire           │ ← Sync Point 3 (Delay?)
-├────────────────────────────────────────┤
-│   Metal Grid        │  RealityKit      │
-│   ┌──────────────┐  │  ┌────────────┐  │
-│   │ Matrix Update│  │  │Camera Update│  │ ← Sync Point 4 (Mismatch?)
-│   ├──────────────┤  │  ├────────────┤  │
-│   │ Grid Render  │  │  │ 3D Render  │  │ ← Sync Point 5
-│   └──────────────┘  │  └────────────┘  │
-├────────────────────────────────────────┤
-│         Composite Frame                │ ← Final Output
-└────────────────────────────────────────┘
 ```
 
 ## Performance Characteristics (Updated)
@@ -188,200 +192,114 @@ private func calculateProjectionMatrix() -> float4x4 {
 ### Synchronization Performance
 
 ```yaml
-Before Phase 1:
-  - 16ms throttled updates
-  - Visible lag always present
-  - Grid/camera completely desynced
+Initial Launch:
+  - Completely desynchronized
+  - Grid and entities move independently
+  - Unusable for precise work
 
-After Phase 1 Improvements:
-  - <1ms update latency (most of the time)
-  - Minor lag in rapid movements
-  - Occasional desync on iOS
-  - Frame-perfect sync not achieved
+After Close/Reopen:
+  - Perfect synchronization
+  - <1ms update latency
+  - Frame-perfect sync achieved
+  - Professional quality
 
-Remaining Issues:
-  - Combine publisher overhead
-  - RunLoop scheduling delays
-  - Platform timing differences
-```
-
-## Platform-Specific Sync Issues
-
-### iOS Synchronization
-```swift
-// iOS uses timer-based updates
-#if os(iOS)
-updateTimer = Timer.scheduledTimer(withTimeInterval: 1.0/60.0, repeats: true) { _ in
-    Task { @MainActor in
-        // Camera updates here
-        // Grid updates via Combine
-        // Potential timing mismatch!
-    }
-}
-#endif
-```
-
-### macOS Synchronization
-```swift
-// macOS uses on-demand updates
-#if os(macOS)
-if viewportState.needsUpdate {
-    updateCamera()
-    // Grid updates via Combine
-    // Different timing than iOS!
-}
-#endif
-```
-
-## Potential Solutions (Not Yet Implemented)
-
-### Solution 1: Direct Update Without Combine
-```swift
-// Skip Combine entirely for critical updates
-func updateCamera() {
-    // Update camera
-    viewportState.cameraEntity.position = computePosition()
-    
-    // Immediately update grid matrices
-    gridRenderer.viewMatrix = calculateViewMatrix()
-    gridRenderer.projectionMatrix = calculateProjectionMatrix()
-    gridRenderer.forceRedraw()  // Synchronous update
-}
-```
-
-### Solution 2: Unified Update Loop
-```swift
-// Single update method for both Metal and RealityKit
-func unifiedUpdate() {
-    CATransaction.begin()
-    CATransaction.setDisableActions(true)
-    
-    // Update all matrices
-    let viewMatrix = calculateViewMatrix()
-    let projMatrix = calculateProjectionMatrix()
-    
-    // Apply to both renderers simultaneously
-    gridRenderer.updateMatrices(view: viewMatrix, proj: projMatrix)
-    realityKitCamera.updateMatrices(view: viewMatrix, proj: projMatrix)
-    
-    CATransaction.commit()
-}
-```
-
-### Solution 3: Frame Callback Synchronization
-```swift
-// Use display link for perfect frame sync
-let displayLink = CADisplayLink(target: self, selector: #selector(frameUpdate))
-displayLink.add(to: .main, forMode: .common)
-
-@objc func frameUpdate() {
-    // Update both systems in same frame callback
-    updateCameraPosition()
-    updateGridMatrices()
-    renderFrame()
-}
+Performance is NOT the issue - sync mechanism is broken on init
 ```
 
 ## Debug Helpers for Sync Issues
 
-### Sync Debug Overlay
+### Diagnostic Code
 ```swift
-struct SyncDebugInfo {
-    var cameraUpdateTime: TimeInterval = 0
-    var gridUpdateTime: TimeInterval = 0
-    var frameDelta: TimeInterval = 0
-    
-    var isSynced: Bool {
-        abs(cameraUpdateTime - gridUpdateTime) < 0.001  // Within 1ms
-    }
-    
-    func printDebug() {
-        print("""
-        Sync Status: \(isSynced ? "✓" : "✗")
-        Camera: \(cameraUpdateTime * 1000)ms
-        Grid: \(gridUpdateTime * 1000)ms
-        Delta: \(abs(cameraUpdateTime - gridUpdateTime) * 1000)ms
-        """)
-    }
-}
-```
-
-### Visual Sync Indicator
-```swift
-// Add visual indicator when out of sync
-if !syncDebugInfo.isSynced {
-    // Draw red border or indicator
-    drawSyncWarning()
+// Add to ViewportMetalGrid to diagnose the issue
+func debugSyncState() {
+    print("=== Metal Grid Sync Debug ===")
+    print("MTKView isPaused: \(metalView.isPaused)")
+    print("Preferred FPS: \(metalView.preferredFramesPerSecond)")
+    print("Enable setNeedsDisplay: \(metalView.enableSetNeedsDisplay)")
+    print("Has window: \(metalView.window != nil)")
+    #if os(macOS)
+    print("Layer contents scale: \(metalView.layer?.contentsScale ?? 0)")
+    print("Window backing scale: \(metalView.window?.backingScaleFactor ?? 0)")
+    #endif
+    print("Current drawable: \(metalView.currentDrawable != nil)")
+    print("=============================")
 }
 ```
 
 ## Known Issues (Phase 1 Remaining)
 
-### SYNC-001: Grid Lag During Rapid Movement
+### SYNC-001: Complete Desync on Initial Launch
 ```yaml
-Issue: Grid lags behind camera during fast orbiting
-Severity: Medium
-Impact: Visual quality, professional polish
-Status: Partially fixed (reduced from 16ms to <1ms)
-Remaining: Frame-perfect sync needed
+Issue: Grid completely out of sync with camera on app start
+Severity: CRITICAL
+Impact: Makes editor unusable until close/reopen
+Status: Root cause unknown, workaround exists
 
 Reproduction:
-  1. Rapidly orbit camera with mouse/touch
-  2. Observe grid slightly behind camera
-  3. Most noticeable at viewport edges
+  1. Build and run application
+  2. Try to rotate camera
+  3. Observe grid and entities completely separated
+
+Workaround:
+  1. Close window (red button)
+  2. Reopen from dock
+  3. Sync is perfect
 ```
 
-### SYNC-002: iOS Timer Desync
+### SYNC-002: Minimize Doesn't Fix Sync
 ```yaml
-Issue: Timer-based updates don't align with render loop
+Issue: Minimizing and restoring doesn't fix sync like close/reopen does
 Severity: Medium
-Impact: iOS performance consistency
-Status: Working but not optimal
-
-Details:
-  - Timer fires at 60fps
-  - But not synced with actual frame rendering
-  - Can cause stuttering or double updates
+Impact: Users might expect minimize to fix issues
+Status: Indicates issue is deeper than window visibility
 ```
 
-### SYNC-003: Platform Timing Differences
+### SYNC-003: iOS Has No Workaround
 ```yaml
-Issue: iOS and macOS use different update strategies
-Severity: Low
-Impact: Code complexity, maintenance
-Status: Functional but inconsistent
-
-Solution Needed:
-  - Unified update strategy
-  - Platform-agnostic sync mechanism
+Issue: iOS can't close window without quitting app
+Severity: High on iOS
+Impact: No way to achieve sync on iOS
+Status: Need alternative solution for iOS
 ```
 
-## Critical Code Paths for Sync
+## Potential Solutions (Not Yet Tested)
 
-### Camera Update Path
+### Solution 1: Delayed Metal Initialization
 ```swift
-// ViewportState.swift
-func updateCamera() {
-    let position = computeCameraPosition()  // 1. Calculate position
-    cameraEntity.position = position         // 2. Update RealityKit
-    // 3. @Published properties fire
-    // 4. Combine observers notified
-    // 5. Grid updates (with delay?)
+// Don't start Metal rendering until window is fully ready
+func setupView() -> MTKView {
+    metalView.isPaused = true  // Start paused
+    
+    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+        // Start rendering after window is established
+        metalView.isPaused = false
+    }
 }
 ```
 
-### Grid Update Path
+### Solution 2: Force Window Server Sync
 ```swift
-// MetalGridRenderer.swift
-func updateMatrixBuffer() {
-    var uniforms = GridUniforms(
-        viewMatrix: viewMatrix,           // Must match camera exactly
-        projectionMatrix: projectionMatrix // Must match camera exactly
-    )
-    matrixBuffer.contents().copyMemory(
-        from: &uniforms,
-        byteCount: MemoryLayout<GridUniforms>.stride
-    )
+#if os(macOS)
+// Try to trigger whatever close/reopen does
+NSApp.hide(nil)
+DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+    NSApp.unhide(nil)
+}
+#endif
+```
+
+### Solution 3: Recreate MTKView After Window Ready
+```swift
+// Create placeholder view first, then real one
+func makeNSView(context: Context) -> MTKView {
+    let placeholder = MTKView()
+    
+    DispatchQueue.main.async {
+        // Replace with real view after window exists
+        context.coordinator.createRealMetalView()
+    }
+    
+    return placeholder
 }
 ```
 
@@ -393,22 +311,29 @@ To Complete Phase 1 (2% Remaining):
   ✓ Scene graph connected (DONE)
   ✓ Platform compatibility (DONE)
   ✓ 60fps performance (DONE)
-  ✗ Frame-perfect grid/camera sync (REMAINING)
+  ✗ Grid syncs on initial launch (CRITICAL REMAINING ISSUE)
+  
+Current State:
+  - Everything works AFTER close/reopen
+  - Initial launch is completely broken
+  - No known fix despite extensive testing
   
 Acceptance Criteria for Sync:
-  - Zero visible lag during camera movement
-  - Grid and models move as one unit
-  - Smooth on all platforms
-  - No stuttering or jumping
+  - Grid and models move together ON FIRST LAUNCH
+  - No close/reopen workaround needed
+  - Works on both iOS and macOS
 ```
 
 ## Summary
 
-The Metal rendering pipeline is **98% complete** for Phase 1:
-- ✅ GPU-accelerated rendering working
-- ✅ Day/night cycle functional
-- ✅ Layer composition correct
-- ✅ Performance targets met (60fps)
-- ⚠️ Grid synchronization has minor lag (2% remaining)
+The Metal rendering pipeline has a **critical initialization issue** that prevents Phase 1 completion:
 
-**Phase 1 cannot be marked complete until frame-perfect synchronization is achieved.** The grid must move in perfect lockstep with the camera and 3D models. Current implementation is functional but lacks the professional polish required for completion.
+- ✅ The rendering code is correct
+- ✅ The update mechanism works perfectly (after close/reopen)
+- ✅ Performance is excellent
+- ❌ Initial synchronization is completely broken
+- ❌ Only workaround is close/reopen (not available on iOS)
+
+**Phase 1 cannot be marked complete** until the grid synchronizes correctly on initial application launch. The issue appears to be related to how Metal, SwiftUI, and RealityKit establish their initial relationship, which is only properly set up when the window is closed and reopened.
+
+**Current Status: 98% complete, blocked by critical sync initialization issue**

@@ -1,159 +1,113 @@
 # RealityViewport Implementation Status
 
 **Module**: IMPLEMENTATION.md  
-**Version**: 5.0  
+**Version**: 5.1  
 **Architecture**: Simplified Entity Wrapper + Metal + Floating UI  
 **Philosophy**: Ship what works, grow what's needed  
-**Status**: Phase 1 Complete - Primitive Visibility Fixed ✅  
+**Status**: Phase 1 - 98% Complete (Grid Sync Issue Blocking)  
 **Last Updated**: December 2024
 
-## 🎯 Phase 1 Achievement: Primitive Visibility Fixed!
+## 🎯 Phase 1 Status: 98% Complete - Critical Sync Issue Remaining
 
-**Critical Issue Resolved**: Entities are now immediately visible when created. The + menu creates colored primitives that appear instantly, transforming RealityViewport from "essentially unusable" to a functional 3D editor.
+**Major Achievement**: Entities are now immediately visible when created. The + menu creates colored primitives that appear instantly.
+
+**Critical Blocker**: Metal grid completely desynchronized on initial launch. Only works after close/reopen workaround.
 
 ```yaml
 Phase 1 Results:
-  ✅ Colored primitives appear immediately
-  ✅ Scene graph connection fixed
-  ✅ ViewportEntityFactory duplicate entity issue resolved
-  ✅ Publishing changes errors eliminated
-  ✅ Platform compatibility achieved
-  ✅ 60fps performance maintained
+  ✅ Colored primitives appear immediately (DONE)
+  ✅ Scene graph connection fixed (DONE)
+  ✅ ViewportEntityFactory issue resolved (DONE)
+  ✅ Publishing changes errors eliminated (DONE)
+  ✅ Platform compatibility achieved (DONE)
+  ✅ 60fps performance maintained (DONE)
+  ❌ Metal grid sync on startup (BLOCKING - 2% remaining)
 ```
 
 ## Quick Status Dashboard
 
-| System | Status | Completion | Performance | Phase 1 Changes |
-|--------|--------|------------|-------------|-----------------|
-| **Entity Wrapper** | ✅ | 100% Alpha | Excellent | Added colored primitive factory methods |
-| **Scene Graph** | ✅ | 100% Fixed | Excellent | Connected SceneManager → ViewportState |
-| **Primitives** | ✅ | 100% Working | Immediate | Blue box, green sphere, orange cylinder, etc. |
-| **Metal Rendering** | ✅ | 100% Complete | 60fps | Grid sync improved to <1ms |
-| **Floating UI** | ✅ | 100% Complete | Native | Deferred primitive creation added |
-| **SceneManager** | ✅ | 95% Complete | Good | Fixed to use entity.realityEntity directly |
-| **ViewportState** | ✅ | 95% Complete | Excellent | Added setSceneManager() connection |
+| System | Status | Completion | Performance | Notes |
+|--------|--------|------------|-------------|-------|
+| **Entity Wrapper** | ✅ | 100% Complete | Excellent | Colored primitives working |
+| **Scene Graph** | ✅ | 100% Complete | Excellent | Properly connected |
+| **Primitives** | ✅ | 100% Complete | Immediate | All colors working |
+| **Metal Grid** | ⚠️ | 98% Complete | Desynced | **CRITICAL: Sync broken on startup** |
+| **Floating UI** | ✅ | 100% Complete | Native | Deferred creation working |
+| **SceneManager** | ✅ | 100% Complete | Good | Using entity.realityEntity |
+| **ViewportState** | ✅ | 100% Complete | Excellent | setSceneManager() working |
 | **SelectionManager** | ✅ | 90% Complete | Good | Multi-selection ready |
 | **ProjectManager** | ✅ | 85% Complete | Good | Save/load working |
 | **Transform Gizmos** | 🔄 | 75% Complete | Functional | Works, needs smoothing |
-| **iOS Performance** | ✅ | 100% Fixed | Smooth | Timer-based updates prevent publishing errors |
 
 ### Legend
-- ✅ **Complete** - Working perfectly for current needs
+- ✅ **Complete** - Working perfectly
+- ⚠️ **Critical Issue** - Blocking Phase 1 completion
 - 🔄 **Functional** - Works but could be polished
-- 📌 **Placeholder** - Minimal implementation
-- ⏳ **Future** - Not needed yet
 
-## Phase 1 Implementation Journey
+## Critical Issue: Metal Grid Synchronization
 
-### The Core Problem
-When users clicked the + menu, they would see a gizmo but no visible geometry. This made the editor unusable since users couldn't see what they were creating.
-
-### Critical Fixes Implemented
-
-#### 1. Colored Primitive Factory Methods (Entity.swift)
-```swift
-// Added platform-agnostic color support
-#if os(macOS)
-typealias PlatformColor = NSColor
-#else
-typealias PlatformColor = UIColor
-#endif
-
-// Factory methods with distinct colors
-static func box(size: Float = 1.0, color: PlatformColor = .systemBlue, name: String = "Box") -> Entity
-static func sphere(radius: Float = 0.5, color: PlatformColor = .systemGreen, name: String = "Sphere") -> Entity
-static func cylinder(height: Float = 1.0, radius: Float = 0.5, color: PlatformColor = .systemOrange, name: String = "Cylinder") -> Entity
-static func plane(width: Float = 2.0, depth: Float = 2.0, color: PlatformColor = .systemGray, name: String = "Plane") -> Entity
-static func cone(height: Float = 1.0, radius: Float = 0.5, color: PlatformColor = .systemPurple, name: String = "Cone") -> Entity
-```
-
-#### 2. Scene Graph Connection (ViewportState.swift)
-```swift
-// CRITICAL: Connect SceneManager to ViewportState
-public func setSceneManager(_ manager: SceneManager) {
-    self.sceneManager = manager
-    rootEntity.addChild(manager.rootEntity) // This makes entities visible!
-}
-
-// Made camera properties @Published for proper synchronization
-@Published var cameraDistance: Float = 10.0
-@Published var cameraAzimuth: Float = 0.785
-@Published var cameraElevation: Float = 0.523
-@Published var cameraTarget: SIMD3<Float> = [0, 0, 0]
-```
-
-#### 3. SceneManager Fix (SceneManager.swift)
-```swift
-// CRITICAL FIX: Use entity's existing realityEntity directly
-public func addEntity(_ entity: any SceneEntity) {
-    // Don't create new entity - use the configured one!
-    let realityEntity = entity.realityEntity  // Has ModelComponent with materials
-    rootEntity.addChild(realityEntity)
-    
-    // Debug verification
-    print("Added entity '\(entity.name)' to scene")
-    print("  - Has ModelComponent: \(realityEntity.components.has(ModelComponent.self))")
-}
-```
-
-#### 4. Deferred Primitive Creation (ViewportToolbar.swift)
-```swift
-// Avoid "Publishing changes from within view updates" error
-private func addPrimitive(_ type: SceneManager.PrimitiveType) {
-    Task { @MainActor in  // Defer to avoid SwiftUI conflicts
-        let primitive: Entity
-        switch type {
-        case .cube:
-            primitive = Entity.box(size: 1.0, color: .systemBlue, name: "Cube")
-        // ... other primitives
-        }
-        
-        // Smart positioning at eye level
-        let basePosition = SIMD3<Float>(0, 1.5, -3)
-        let offset = Float(primitiveCount) * 1.5
-        primitive.position = basePosition + SIMD3<Float>(offset, 0, 0)
-        
-        sceneManager.addEntity(primitive)
-        sceneManager.selectEntity(primitive)
-        viewportState.needsUpdate = true
-    }
-}
-```
-
-#### 5. ViewportEntityFactory Deprecation
-```swift
-// Factory was creating duplicate empty entities!
-// Now properly checks if entity already has components
-if entity.realityEntity.components.has(ModelComponent.self) {
-    print("⚠️ Entity already has ModelComponent - use entity.realityEntity directly!")
-    return entity.realityEntity
-}
-```
-
-## Performance Profile
-
-### Frame Budget Achievement
+### The Problem
 ```yaml
-Target: 60fps (16.67ms budget)
-Actual: 11-15ms (1-5ms headroom) ✅
-
-Breakdown:
-  Sky Rendering: 0.5ms (Metal GPU)
-  Grid Rendering: 0.3ms (Metal GPU) - Improved from 16ms!
-  Entity Updates: 1-2ms (CPU)
-  RealityKit Scene: 8-12ms (Mixed)
-  SwiftUI: 2ms (CPU)
-  Floating UI: ~0.5ms (negligible)
+Symptoms:
+  - On initial launch: Grid and entities completely separate when camera moves
+  - After close/reopen: Perfect synchronization maintained
+  - Minimize/restore: Does NOT fix the issue
   
-Phase 1 Improvements:
-  Metal Grid Sync: Reduced from 16ms to <1ms
-  Direct property observation without throttling
-  No performance regression from primitive implementation
+Impact:
+  - Makes editor feel broken on first launch
+  - Users must know the workaround
+  - No solution on iOS (can't close without quitting)
+  
+Discovery Date: December 2024
+Status: Multiple solutions attempted, none successful
+```
+
+### Debugging Journey (December 2024)
+
+#### What We Tried
+| Attempt | Approach | Result | Learning |
+|---------|----------|--------|----------|
+| **Direct Updates** | Remove Combine, update in updateUIView | Made it worse - added delays | Update mechanism isn't the issue |
+| **Manual Drawing** | enableSetNeedsDisplay = true, isPaused = true | Horrible - constant delays | Metal needs continuous rendering |
+| **Force Layer Attach** | Set contentsScale, pause/unpause, create drawable | No improvement | Layer attachment isn't the cause |
+| **State Change Trigger** | Change camera distance by 0.001 on init | Didn't fix sync | State change doesn't trigger the fix |
+| **Delayed Init** | Wait 0.1s before starting Metal | No improvement | Timing isn't the issue |
+
+#### What We Learned
+```yaml
+Key Insights:
+  1. The update code is CORRECT (works after close/reopen)
+  2. The initialization is WRONG (broken on first launch)
+  3. Close/reopen does something we can't replicate
+  4. Minimize/restore doesn't trigger the same fix
+  5. Issue exists on both macOS and iOS
+  
+Hypothesis:
+  - Window server or compositor state issue
+  - CAMetalLayer needs proper window connection
+  - Display link synchronization problem
+  - SwiftUI/Metal/RealityKit timing mismatch
 ```
 
 ## Known Issues & Status
 
-### 🐛 Fixed in Phase 1
+### 🔴 Critical for Phase 1 Completion
+```yaml
+SYNC-001:
+  Issue: "Metal grid completely desynchronized on initial launch"
+  Impact: CRITICAL - Makes editor unusable without workaround
+  Workaround: Close window (red button) and reopen
+  Status: ❌ No fix found despite extensive debugging
+  
+Details:
+  - Grid and entities move independently
+  - Camera updates don't sync to Metal grid
+  - Only fixed by close/reopen cycle
+  - Minimize doesn't fix it
+  - iOS has no workaround
+```
+
+### ✅ Fixed in Phase 1
 ```yaml
 FIXED-P1-001:
   Issue: "Entities invisible when created"
@@ -174,14 +128,9 @@ FIXED-P1-004:
   Issue: "Platform color incompatibility"
   Solution: PlatformColor typealias with conditional compilation
   Status: ✅ FIXED
-
-FIXED-P1-005:
-  Issue: "Metal grid desynchronization"
-  Solution: Direct observation of camera properties
-  Status: ✅ FIXED
 ```
 
-### 🔄 Remaining Minor Issues
+### 🔄 Minor Issues (Post-Phase 1)
 ```yaml
 MINOR-001:
   Issue: "Gizmo interaction needs smoothing"
@@ -191,97 +140,63 @@ MINOR-001:
 MINOR-002:
   Issue: "Outliner primitive organization"
   Impact: Low - UI organization
-  Status: In progress (adding .primitive case to SceneEntityType)
-
-MINOR-003:
-  Issue: "Occasional frame delay on iOS"
-  Impact: Very Low
-  Status: Likely due to timer-based updates, acceptable
+  Status: In progress
 ```
 
-### 💭 Intentional "Limitations" (Not Bugs)
+## Performance Profile
+
+### Frame Budget Achievement
 ```yaml
-Not Built (YAGNI):
-  - Undo/redo system
-  - Entity prefabs
-  - LOD system
-  - Particle systems
-  - Physics wrappers
-  - Animation system
-  - Dockable panels
-  - Multiple viewports
+Target: 60fps (16.67ms budget)
+Actual: 11-15ms (1-5ms headroom) ✅
 
-These aren't missing - they're not needed yet.
+Breakdown:
+  Sky Rendering: 0.5ms (Metal GPU)
+  Grid Rendering: 0.3ms (Metal GPU)
+  Grid Sync Issue: N/A (not a performance issue)
+  Entity Updates: 1-2ms (CPU)
+  RealityKit Scene: 8-12ms (Mixed)
+  SwiftUI: 2ms (CPU)
+  
+Note: Performance is excellent AFTER close/reopen
+      Issue is initialization, not performance
 ```
 
-## Architecture Insights from Phase 1
+## Phase 1 Completion Status
 
-### Scene Graph Architecture
+### Success Criteria
+| Metric | Target | Achieved | Status | Notes |
+|--------|--------|----------|--------|-------|
+| Entities visible | Yes | ✅ Yes | Complete | Colored primitives work |
+| Distinct colors | Yes | ✅ Yes | Complete | Blue box, green sphere, etc. |
+| Smart positioning | Yes | ✅ Yes | Complete | Eye level, staggered |
+| No publishing errors | Yes | ✅ Yes | Complete | Task deferral working |
+| Scene graph connected | Yes | ✅ Yes | Complete | setSceneManager() implemented |
+| 60fps maintained | Yes | ✅ Yes | Complete | 11-15ms frame time |
+| Cross-platform | Yes | ✅ Yes | Complete | iOS/macOS working |
+| **Grid sync on startup** | Yes | ❌ No | **BLOCKED** | Only works after close/reopen |
+
+### Phase 1 Completion Metrics
 ```yaml
-Discovery: Two disconnected scene graphs existed
-  - SceneManager.rootEntity (had entities)
-  - ViewportState.rootEntity (was rendering)
-  - No connection between them!
+Overall Completion: 98%
+Remaining Work: Fix grid sync on initial launch
 
-Solution: ViewportState.setSceneManager()
-  - Adds SceneManager.rootEntity as child
-  - Creates proper hierarchy:
-    ViewportState.rootEntity
-      └── SceneManager.rootEntity
-            └── All scene entities
+Blocked By:
+  - Unknown initialization issue
+  - Metal/SwiftUI/RealityKit sync problem
+  - Window server or compositor state
 
-Result: Immediate visibility of all entities
+Workaround Available:
+  - macOS: Close and reopen window
+  - iOS: No workaround (critical)
 ```
-
-### Entity System Pattern
-```yaml
-Correct Pattern:
-  1. Entity creates configured realityEntity with components
-  2. SceneManager uses entity.realityEntity directly
-  3. ViewportState renders the hierarchy
-
-Wrong Pattern (was causing issues):
-  1. Entity creates realityEntity
-  2. ViewportEntityFactory creates ANOTHER entity
-  3. Original configured entity discarded
-  4. Empty duplicate added to scene
-```
-
-## Phase 1 Completion Metrics
-
-### Success Criteria ✅ ALL ACHIEVED
-| Metric | Target | Achieved | Evidence |
-|--------|--------|----------|----------|
-| Entities visible | Yes | ✅ Yes | Colored primitives appear immediately |
-| Distinct colors | Yes | ✅ Yes | Blue box, green sphere, etc. |
-| Smart positioning | Yes | ✅ Yes | Eye level, staggered placement |
-| No publishing errors | Yes | ✅ Yes | Task deferral working |
-| Scene graph connected | Yes | ✅ Yes | setSceneManager() implemented |
-| 60fps maintained | Yes | ✅ Yes | 11-15ms frame time |
-| Cross-platform | Yes | ✅ Yes | iOS/macOS working |
-
-## Code Changes Summary
-
-### Files Modified in Phase 1
-| File | Changes | Lines | Impact |
-|------|---------|-------|--------|
-| **Entity.swift** | Added colored primitive factories | +150 | Critical |
-| **SceneManager.swift** | Fixed entity.realityEntity usage | +50 | Critical |
-| **ViewportState.swift** | Added setSceneManager() | +40 | Critical |
-| **ViewportView.swift** | Connected scene graphs | +20 | Critical |
-| **ViewportToolbar.swift** | Deferred primitive creation | +80 | Important |
-| **ViewportEntityFactory.swift** | Deprecated duplicate creation | +30 | Important |
-| **ViewportMetalGrid.swift** | Direct property observation | +25 | Performance |
-| **PlatformColor fixes** | Multiple files | +50 | Compatibility |
-
-**Total: ~800 lines changed** (200 core fixes, 600 improvements)
 
 ## Implementation Roadmap
 
-### ✅ Phase 1: Primitive Visibility (COMPLETE)
+### ⚠️ Phase 1: Primitive Visibility (98% COMPLETE - BLOCKED)
 ```yaml
 Goal: Fix invisible entities issue
-Status: 100% COMPLETE
+Status: 98% COMPLETE - Grid sync blocking
 
 Achieved:
   ✅ Colored primitives working
@@ -290,13 +205,20 @@ Achieved:
   ✅ Platform compatibility
   ✅ Performance maintained
   
-Result: Transformed from unusable to functional!
+Remaining (2%):
+  ❌ Fix grid sync on initial launch
+  - Extensive debugging completed
+  - Root cause still unknown
+  - Workaround documented
+  
+Cannot proceed to Phase 2 until resolved
 ```
 
-### 🚀 Phase 2: Lighting System (NEXT)
+### 🚀 Phase 2: Lighting System (BLOCKED)
 ```yaml
 Goal: Professional three-point lighting
-Timeline: 1-2 weeks
+Status: Cannot start until Phase 1 complete
+Timeline: 1-2 weeks after sync fix
 
 Planned:
   - Shadow rendering
@@ -305,96 +227,123 @@ Planned:
   - Color temperature
 ```
 
-### 🎨 Phase 3: Material Editor (FUTURE)
-```yaml
-Goal: Visual material editing
-Timeline: 2-3 weeks
+## Lessons Learned from Sync Debugging
 
-Planned:
-  - Material properties panel
-  - Texture loading
-  - Shader parameters
-  - Live preview
+### What Didn't Work
+```yaml
+Failed Approaches:
+  1. Removing Combine publishers - Made it worse
+  2. Manual draw triggers - Added unacceptable delays
+  3. Force layer attachment - No effect
+  4. Delayed initialization - Didn't help
+  5. State change triggers - Ineffective
+  
+Key Learning:
+  - The problem is NOT in our code logic
+  - The problem IS in initialization sequence
+  - Something about close/reopen fixes it
+  - We cannot replicate what close/reopen does
 ```
 
-## Lessons Learned from Phase 1
-
-### Critical Discoveries
-1. **Scene graph connection is non-obvious** - Two separate graphs can exist without connection
-2. **View recreation breaks RealityKit** - Aggressive .id() modifiers destroy scene graphs
-3. **Factory patterns can create problems** - Direct usage often better than abstraction
-4. **Platform differences matter** - Always use typealiases for UIColor/NSColor
-5. **SwiftUI timing is tricky** - Publishing changes errors require careful deferral
-6. **Direct observation beats throttling** - For real-time sync, observe properties directly
-
-### Best Practices Established
+### What We Know Works
 ```yaml
-DO:
-  ✅ Use entity.realityEntity directly when configured
-  ✅ Defer updates with Task { @MainActor }
-  ✅ Add comprehensive debug logging
-  ✅ Test on both iOS and macOS
-  ✅ Keep scene graph connections simple
-
-DON'T:
-  ❌ Create duplicate entities through factories
-  ❌ Use aggressive view recreation
-  ❌ Throttle critical property observations
-  ❌ Assume platform API availability
-  ❌ Hide configuration in abstraction layers
+Working State (After Close/Reopen):
+  - Perfect synchronization
+  - Smooth 60fps
+  - All systems working correctly
+  - Maintains sync during all operations
+  
+This Proves:
+  - Our update code is correct
+  - Our matrix calculations are correct
+  - Our Combine publishers work fine
+  - The issue is purely initialization
 ```
 
-## Why This Implementation is Production Ready
+## Critical Decision Point
 
-### Professional Polish Achieved
+### Options for Phase 1 Completion
 ```yaml
-Visual Quality:
-  ✅ Immediate primitive visibility
-  ✅ Distinct, pleasing colors
-  ✅ Smart object positioning
-  ✅ Smooth 60fps performance
-  ✅ Beautiful floating UI
-
-Technical Quality:
-  ✅ Scene graph properly connected
-  ✅ No SwiftUI publishing conflicts
-  ✅ Cross-platform compatibility
-  ✅ Clean architecture maintained
-  ✅ Performance headroom available
+Option 1: Continue Debugging
+  - Try more initialization approaches
+  - Investigate window server APIs
+  - Research CAMetalLayer initialization
+  Time: Unknown (could be days/weeks)
+  Risk: May not find solution
+  
+Option 2: Document Workaround
+  - Accept close/reopen as temporary solution
+  - Document clearly for users
+  - Move to Phase 2 with known issue
+  Time: Immediate
+  Risk: Poor user experience
+  
+Option 3: Alternative Architecture
+  - Consider different Metal integration
+  - Possibly use RealityKit for grid
+  - Major refactoring required
+  Time: 1-2 weeks
+  Risk: May introduce new issues
+  
+Recommendation: 
+  - Spend 1 more day on debugging
+  - If no solution, document and move forward
+  - Revisit after Phase 2 with fresh perspective
 ```
+
+## Code Changes Summary (Phase 1)
+
+### Files Modified
+| File | Changes | Lines | Impact |
+|------|---------|-------|--------|
+| **Entity.swift** | Added colored primitive factories | +150 | Critical |
+| **SceneManager.swift** | Fixed entity.realityEntity usage | +50 | Critical |
+| **ViewportState.swift** | Added setSceneManager() | +40 | Critical |
+| **ViewportView.swift** | Connected scene graphs | +20 | Critical |
+| **ViewportToolbar.swift** | Deferred primitive creation | +80 | Important |
+| **ViewportMetalGrid.swift** | Multiple sync attempts | +200 | Debugging |
+
+**Total: ~1000 lines changed** (includes debugging attempts)
 
 ## Success Metrics
 
-### Phase 1 Success: ✅ ACHIEVED
+### Phase 1 Status: 98% SUCCESS, 2% BLOCKED
 ```yaml
-Critical Issue: RESOLVED
-  Before: Invisible entities made editor unusable
-  After: Colored primitives appear immediately
+Major Success:
+  - Transformed from invisible to visible entities
+  - Beautiful colored primitives
+  - Smooth performance
+  - Cross-platform support
   
-Performance: MAINTAINED
-  60fps with improved grid sync
+Critical Issue:
+  - Grid sync broken on startup
+  - Only workaround is close/reopen
+  - Blocks Phase 1 completion
   
-Architecture: CLARIFIED
-  Scene graph connection documented
-  Entity system patterns established
-  
-Ready for: Phase 2 (Lighting)
+Business Impact:
+  - Editor is usable WITH workaround
+  - Professional polish missing
+  - User experience compromised
 ```
 
 ## See Also
-- **phase1-report-updated.md** - Detailed implementation journey
-- **EntitySystem.md** - Needs update with primitive methods
-- **ViewportState.md** - Needs update with setSceneManager()
-- **Architecture.md** - Should document scene graph lessons
+- **MetalRendering.md v2.1** - Detailed sync debugging documentation
+- **phase1-report-updated.md** - Original implementation journey
+- **EntitySystem.md** - Primitive implementation details
+- **Architecture.md** - Scene graph architecture
 
 ## Implementation Summary
 
-**Phase 1 transformed RealityViewport from having invisible entities to showing immediately visible, colored primitives.**
+**Phase 1 is 98% complete with a critical grid synchronization blocker.**
 
-The implementation revealed and fixed critical architectural issues:
-- ✅ **Scene graph disconnection** - Now properly connected
-- ✅ **Factory duplication** - Now using entities directly  
-- ✅ **Publishing conflicts** - Now deferred properly
-- ✅ **Platform incompatibility** - Now fully cross-platform
+Major achievements:
+- ✅ **Invisible entities fixed** - Colored primitives appear immediately
+- ✅ **Scene graph connected** - Proper hierarchy established
+- ✅ **Performance excellent** - 60fps maintained
+- ❌ **Grid sync broken** - Only works after close/reopen
 
-**Status: Phase 1 COMPLETE - Ready for Phase 2 (Lighting) 🚀**
+**Status: BLOCKED at 98% - Metal grid desynchronized on initial launch**
+
+The implementation revealed the update code is correct but initialization is broken. Close/reopen fixes it through an unknown mechanism we cannot replicate programmatically.
+
+**Next Steps: One more day of debugging, then document workaround and consider proceeding with known issue.**
